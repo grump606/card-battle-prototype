@@ -10,6 +10,8 @@ const PLAYER_START_HP := 40
 @onready var _hand_box: HBoxContainer = %HandBox
 @onready var _end_turn_button: Button = %EndTurnButton
 @onready var _result_label: Label = %ResultLabel
+@onready var _log_label: RichTextLabel = %LogLabel
+@onready var _new_fight_button: Button = %NewFightButton
 
 var _combat: Combat
 ## Index into Combat.enemies that cards will target.
@@ -18,6 +20,7 @@ var _target_index: int = 0
 
 func _ready() -> void:
 	_end_turn_button.pressed.connect(_on_end_turn_pressed)
+	_new_fight_button.pressed.connect(_start_combat)
 	_start_combat()
 
 
@@ -27,7 +30,12 @@ func _start_combat() -> void:
 	_combat = Combat.new(player, StarterContent.deck(), StarterContent.early_encounter(enemy_count), randi())
 	_combat.state_changed.connect(_refresh)
 	_combat.combat_ended.connect(_on_combat_ended)
+	_combat.card_played.connect(_on_card_played)
+	_combat.enemy_acted.connect(_on_enemy_acted)
+	_target_index = 0
 	_result_label.text = ""
+	_log_label.clear()
+	_new_fight_button.hide()
 	_combat.start()
 
 
@@ -60,6 +68,7 @@ func _rebuild_enemies() -> void:
 		if enemy.is_dead():
 			button.text = "%s\nDefeated" % enemy.display_name
 			button.disabled = true
+			button.modulate = Color(0.5, 0.5, 0.5, 0.6)
 		else:
 			var intent := enemy.current_intent()
 			var marker := "> " if i == _target_index else ""
@@ -68,6 +77,8 @@ func _rebuild_enemies() -> void:
 				intent.describe() if intent != null else "-",
 			]
 			button.pressed.connect(_select_target.bind(i))
+			if i == _target_index:
+				button.modulate = Color(1.0, 0.85, 0.4)
 		_enemy_row.add_child(button)
 
 
@@ -94,3 +105,13 @@ func _on_end_turn_pressed() -> void:
 
 func _on_combat_ended(victory: bool) -> void:
 	_result_label.text = "You slip through the gate." if victory else "You are claimed by the afterlife."
+	_log_label.append_text("[b]%s[/b]\n" % ("Victory" if victory else "Defeat"))
+	_new_fight_button.show()
+
+
+func _on_card_played(card: CardData) -> void:
+	_log_label.append_text("Played %s\n" % card.display_name)
+
+
+func _on_enemy_acted(enemy: EnemyUnit, intent: CardEffect) -> void:
+	_log_label.append_text("%s: %s\n" % [enemy.display_name, intent.describe()])

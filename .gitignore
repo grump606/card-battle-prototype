@@ -4,3 +4,6 @@
 
 # Local engine binaries (download per machine)
 Godot_*/
+
+# Agent worktrees
+.claude/
