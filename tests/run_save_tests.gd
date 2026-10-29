@@ -3,7 +3,8 @@ extends RefCounted
 ## suite in run_tests.gd adds it to its own. Files go to a scratch path under
 ## user://, never the real run_save.json.
 
-const TEST_PATH := "user://run_save_test.json"
+## Per-process name so parallel test runs (separate checkouts, CI shards) never share a file.
+var test_path := "user://run_save_test_%d.json" % OS.get_process_id()
 
 var _failures := 0
 
@@ -13,6 +14,7 @@ func run() -> int:
 	_test_round_trip_equal_state()
 	_test_resume_has_equal_future()
 	_test_file_round_trip_and_delete()
+	_test_overwrite_existing_save()
 	_test_missing_file()
 	_test_corrupt_files()
 	_test_version_mismatch()
@@ -29,12 +31,12 @@ func _check(condition: bool, label: String) -> void:
 
 
 func _cleanup() -> void:
-	RunSave.delete(TEST_PATH)
-	RunSave.delete(TEST_PATH + ".tmp")
+	RunSave.delete(test_path)
+	RunSave.delete(test_path + ".tmp")
 
 
 func _write(text: String) -> void:
-	var file := FileAccess.open(TEST_PATH, FileAccess.WRITE)
+	var file := FileAccess.open(test_path, FileAccess.WRITE)
 	file.store_string(text)
 	file.close()
 
@@ -114,26 +116,40 @@ func _test_resume_has_equal_future() -> void:
 func _test_file_round_trip_and_delete() -> void:
 	var state := RunState.new(5)
 	_walk(state, 2)
-	_check(RunSave.save(state, TEST_PATH) == "", "save writes the file")
-	_check(not FileAccess.file_exists(TEST_PATH + ".tmp"), "no temp file left behind")
-	var loaded := RunSave.load_file(TEST_PATH)
+	_check(RunSave.save(state, test_path) == "", "save writes the file")
+	_check(not FileAccess.file_exists(test_path + ".tmp"), "no temp file left behind")
+	var loaded := RunSave.load_file(test_path)
 	_check(loaded.run != null and loaded.error == "", "saved file loads")
 	if loaded.run != null:
 		_check(RunSave.to_dict(loaded.run) == RunSave.to_dict(state), "file round trip keeps the state")
-	_check(RunSave.delete(TEST_PATH) == "" and not FileAccess.file_exists(TEST_PATH), "delete removes the file")
-	_check(RunSave.delete(TEST_PATH) == "", "deleting a missing save is fine")
+	_check(RunSave.delete(test_path) == "" and not FileAccess.file_exists(test_path), "delete removes the file")
+	_check(RunSave.delete(test_path) == "", "deleting a missing save is fine")
+
+
+## Autosave overwrites the previous save every stop; the rename must replace an existing file.
+func _test_overwrite_existing_save() -> void:
+	_cleanup()
+	var state := RunState.new(7)
+	_walk(state, 1)
+	_check(RunSave.save(state, test_path) == "", "first save writes")
+	_walk(state, 3)
+	_check(RunSave.save(state, test_path) == "", "second save replaces the first")
+	var loaded := RunSave.load_file(test_path)
+	_check(loaded.run != null and RunSave.to_dict(loaded.run) == RunSave.to_dict(state), "the file holds the latest save")
+	_check(not FileAccess.file_exists(test_path + ".tmp"), "no temp file left behind after overwriting")
+	_cleanup()
 
 
 func _test_missing_file() -> void:
 	_cleanup()
-	var loaded := RunSave.load_file(TEST_PATH)
+	var loaded := RunSave.load_file(test_path)
 	_check(loaded.run == null and loaded.missing, "a missing save is reported as missing, not as an error")
 
 
 func _test_corrupt_files() -> void:
 	for text in ["", "{", "not json", "[1,2]", "42", "null", "{\"version\":1}", "\u0001\u0002"]:
 		_write(text)
-		var loaded := RunSave.load_file(TEST_PATH)
+		var loaded := RunSave.load_file(test_path)
 		_check(loaded.run == null and not loaded.missing and loaded.error != "", "corrupt save %s falls back with a message" % JSON.stringify(text))
 	_cleanup()
 
@@ -157,7 +173,8 @@ func _test_bad_fields() -> void:
 		"max_hp": [0, -1, 100000, "x"],
 		"gold": [-1, 99999999, "x", null],
 		"stop_index": [-1, 12, 500, "x", null],
-		"rng_state": [12, "abc", "", null],
+		"rng_state": [12, "abc", "", null, "99999999999999999999", "-99999999999999999999", "007"],
+		"line": ["", "x", 5, null],
 		"deck": [[], "x", ["no_such_card"], [5], null],
 	}
 	for key in cases:
@@ -179,10 +196,10 @@ func _test_save_refused_mid_flight() -> void:
 	var state := RunState.new(3)
 	state.read_story()
 	var combat := state.start_combat()
-	_check(RunSave.save(state, TEST_PATH) != "" and not FileAccess.file_exists(TEST_PATH), "no save while a fight is in flight")
+	_check(RunSave.save(state, test_path) != "" and not FileAccess.file_exists(test_path), "no save while a fight is in flight")
 	combat.abandon()
 	state.complete_combat(true)
-	_check(RunSave.save(state, TEST_PATH) != "" and not FileAccess.file_exists(TEST_PATH), "no save while a reward is pending")
+	_check(RunSave.save(state, test_path) != "" and not FileAccess.file_exists(test_path), "no save while a reward is pending")
 	var done := RunState.new(3)
 	done.finished = true
-	_check(RunSave.save(done, TEST_PATH) != "", "no save of a finished run")
+	_check(RunSave.save(done, test_path) != "", "no save of a finished run")

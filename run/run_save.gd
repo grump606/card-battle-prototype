@@ -28,6 +28,15 @@ class Result extends RefCounted:
 		return result
 
 
+## The shape of the stop line, so a save made before the line changed is rejected instead of
+## pointing stop_index at a different stop.
+static func line_signature(run: RunState) -> String:
+	var parts: Array[String] = []
+	for stop in run.stops:
+		parts.append("%d:%d:%d:%d" % [stop.type, stop.enemy_count, stop.beat_index, 1 if stop.boss else 0])
+	return ",".join(parts)
+
+
 static func to_dict(run: RunState) -> Dictionary:
 	var ids: Array = []
 	for card in run.deck:
@@ -38,6 +47,7 @@ static func to_dict(run: RunState) -> Dictionary:
 		"max_hp": run.player.max_hp,
 		"gold": run.gold,
 		"stop_index": run.stop_index,
+		"line": line_signature(run),
 		"deck": ids,
 		# A string: JSON numbers are doubles and would round a 64-bit state.
 		"rng_state": str(run.rng_state()),
@@ -63,11 +73,16 @@ static func from_dict(data: Variant) -> Result:
 	var gold: Variant = _int(d, "gold", 0, MAX_GOLD)
 	if gold == null:
 		return Result.fail("bad gold")
+	var line: Variant = d.get("line")
+	if typeof(line) != TYPE_STRING or line != line_signature(run):
+		return Result.fail("save is from a different stop line")
 	var stop_index: Variant = _int(d, "stop_index", 0, run.stops.size() - 1)
 	if stop_index == null:
 		return Result.fail("bad stop_index")
 	var rng_text: Variant = d.get("rng_state")
-	if typeof(rng_text) != TYPE_STRING or not (rng_text as String).is_valid_int():
+	# Canonical text only: a number outside int64 or with padding would silently become a
+	# different state through to_int().
+	if typeof(rng_text) != TYPE_STRING or str((rng_text as String).to_int()) != rng_text:
 		return Result.fail("bad rng_state")
 	var raw_deck: Variant = d.get("deck")
 	if typeof(raw_deck) != TYPE_ARRAY or (raw_deck as Array).is_empty() or (raw_deck as Array).size() > MAX_DECK:
