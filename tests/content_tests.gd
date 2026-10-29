@@ -89,13 +89,23 @@ func _test_small_enemies_in_trios() -> void:
 
 func _test_extended_deck() -> void:
 	var deck := StarterContent.extended_deck()
-	_check(deck.size() == StarterContent.EXTENDED_DECK_SIZE and deck.size() == 16, "extended deck has 16 cards")
+	_check(deck.size() == StarterContent.EXTENDED_DECK_SIZE and deck.size() == 14, "extended deck has 14 cards")
 	var counts := {}
 	for card in deck:
 		counts[card.id] = counts.get(card.id, 0) + 1
 		_check(card.cost >= 0 and card.cost <= 3, "extended card playable: %s" % card.id)
-	var want := {&"shove": 2, &"slip_past": 1, &"glimpse_exit": 1, &"heavy_blow": 1, &"brace": 1, &"steady_breath": 1, &"shoulder_charge": 1, &"mark_the_weak": 1, &"sweep": 1, &"cutting_word": 1, &"second_wind": 1, &"hamstring": 1, &"iron_resolve": 1, &"flurry": 1, &"guarded_strike": 1}
+	var want := {&"shove": 3, &"slip_past": 2, &"glimpse_exit": 1, &"heavy_blow": 1, &"brace": 1, &"steady_breath": 1, &"shoulder_charge": 1, &"mark_the_weak": 1, &"sweep": 1, &"cutting_word": 1, &"second_wind": 1}
 	_check(counts == want, "extended deck composition: %s" % str(counts))
+
+	# The extra cards are offered as rewards and sold, but are not in the starting deck.
+	var pool_ids := {}
+	for card in StarterContent.reward_pool():
+		_check(not pool_ids.has(card.id), "reward pool card is distinct: %s" % card.id)
+		pool_ids[card.id] = true
+	for id in [&"hamstring", &"iron_resolve", &"flurry", &"guarded_strike"]:
+		_check(pool_ids.has(id) and not counts.has(id), "%s is in the reward pool but not the starting deck" % id)
+	for id in counts:
+		_check(pool_ids.has(id), "every extended-deck card is in the reward pool: %s" % id)
 
 
 func _test_existing_content_unchanged() -> void:

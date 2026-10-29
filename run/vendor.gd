@@ -104,7 +104,7 @@ func _init(deck: Array[CardData], rng: RandomNumberGenerator, starting_gold: int
 	# Distinct card types by id, in deck order, then a seeded Fisher-Yates shuffle.
 	var pool: Array[CardData] = []
 	var seen := {}
-	for card in StarterContent.extended_deck():
+	for card in StarterContent.reward_pool():
 		if not seen.has(card.id):
 			seen[card.id] = true
 			pool.append(card)

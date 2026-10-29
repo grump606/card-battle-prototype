@@ -28,7 +28,9 @@ const COLOSSUS_PATH := "res://data/enemies/hollow_colossus.tres"
 const WHISPERER_PATH := "res://data/enemies/pale_whisperer.tres"
 ## The run's boss. Deliberately not in ALL_ENEMY_PATHS: it only appears via boss_encounter().
 const CONDUCTOR_PATH := "res://data/enemies/the_conductor.tres"
-const EXTENDED_DECK_SIZE := 16
+const EXTENDED_DECK_SIZE := 14
+## Cards offered only as rewards and vendor stock, never in a starting deck.
+const REWARD_ONLY_PATHS: Array[String] = [HAMSTRING_PATH, IRON_RESOLVE_PATH, FLURRY_PATH, GUARDED_STRIKE_PATH]
 ## The regular enemy types in a fixed order (the boss is separate, see CONDUCTOR_PATH): warden,
 ## lost shade, wisp, colossus, whisperer, cinder hound, mourning crow. The colossus is a solo-only
 ## elite (it was unwinnable next to a second enemy in the balance sim); the
@@ -60,18 +62,16 @@ static func deck() -> Array[CardData]:
 	return cards
 
 
-## Balance-testing deck of EXTENDED_DECK_SIZE (16) cards: 2 Shove, 1 Slip Past,
+## Balance-testing deck of EXTENDED_DECK_SIZE (14) cards: 3 Shove, 2 Slip Past,
 ## 1 Glimpse the Exit, 1 Heavy Blow, 1 Brace, 1 Steady Breath, 1 Shoulder Charge,
-## 1 Mark the Weak, 1 Sweep, 1 Cutting Word, 1 Second Wind, 1 Hamstring, 1 Iron Resolve,
-## 1 Flurry, 1 Guarded Strike. Reward and vendor pools are the distinct cards of this deck.
+## 1 Mark the Weak, 1 Sweep, 1 Cutting Word, 1 Second Wind.
 ## Returns an empty deck (and logs the cause) if any card resource fails to load.
 static func extended_deck() -> Array[CardData]:
 	var cards: Array[CardData] = []
 	var plan: Array = [
-		[SHOVE_PATH, 2], [SLIP_PAST_PATH, 1], [GLIMPSE_EXIT_PATH, 1],
+		[SHOVE_PATH, 3], [SLIP_PAST_PATH, 2], [GLIMPSE_EXIT_PATH, 1],
 		[HEAVY_BLOW_PATH, 1], [BRACE_PATH, 1], [STEADY_BREATH_PATH, 1], [SHOULDER_CHARGE_PATH, 1],
 		[MARK_THE_WEAK_PATH, 1], [SWEEP_PATH, 1], [CUTTING_WORD_PATH, 1], [SECOND_WIND_PATH, 1],
-		[HAMSTRING_PATH, 1], [IRON_RESOLVE_PATH, 1], [FLURRY_PATH, 1], [GUARDED_STRIKE_PATH, 1],
 	]
 	for entry in plan:
 		var card := _load_card(entry[0] as String)
@@ -81,6 +81,26 @@ static func extended_deck() -> Array[CardData]:
 		for i in (entry[1] as int):
 			cards.append(card)
 	return cards
+
+
+## The distinct cards the run can offer as rewards or sell at a vendor: every card in the
+## extended deck plus the extra cards that only appear this way (they are not in any
+## starting deck). Empty (cause logged) if any card fails to load.
+static func reward_pool() -> Array[CardData]:
+	var pool: Array[CardData] = []
+	var seen := {}
+	var cards := extended_deck()
+	for path in REWARD_ONLY_PATHS:
+		var card := _load_card(path)
+		if card == null:
+			var empty: Array[CardData] = []
+			return empty
+		cards.append(card)
+	for card in cards:
+		if not seen.has(card.id):
+			seen[card.id] = true
+			pool.append(card)
+	return pool
 
 
 static func warden() -> EnemyData:

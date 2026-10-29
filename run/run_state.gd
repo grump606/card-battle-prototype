@@ -10,7 +10,7 @@ extends RefCounted
 
 enum StopType { COMBAT, REST, STORY, VENDOR }
 
-const START_HP := 51
+const START_HP := 48
 const REST_HEAL := 24
 const REWARD_CHOICES := 3
 
@@ -275,7 +275,7 @@ func _default_line() -> Array[Stop]:
 
 
 func _roll_rewards() -> void:
-	var pool := _distinct_cards(StarterContent.extended_deck())
+	var pool := _distinct_cards(StarterContent.reward_pool())
 	_shuffle(pool)
 	_reward_choices.assign(pool.slice(0, REWARD_CHOICES))
 

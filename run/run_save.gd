@@ -73,7 +73,7 @@ static func from_dict(data: Variant) -> Result:
 	if typeof(raw_deck) != TYPE_ARRAY or (raw_deck as Array).is_empty() or (raw_deck as Array).size() > MAX_DECK:
 		return Result.fail("bad deck")
 	var known := {}
-	for card in StarterContent.extended_deck():
+	for card in StarterContent.reward_pool():
 		known[String(card.id)] = card
 	if known.is_empty():
 		return Result.fail("card content failed to load")
