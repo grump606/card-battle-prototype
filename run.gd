@@ -48,7 +48,9 @@ func _show_stop() -> void:
 func _update_header() -> void:
 	var player := _run.player
 	var position := mini(_run.stop_index + 1, _run.stops.size())
-	var stop_text := "Journey's end" if _run.finished else _run.current_stop().describe()
+	var stop_text := _run.current_stop().describe() if not _run.finished else "Journey's end"
+	if _run.reward_pending():
+		stop_text = "Reward"
 	_header.text = "Stop %d/%d: %s    |    %s  HP %d/%d    |    Gold %d    |    Deck %d" % [
 		position, _run.stops.size(), stop_text, player.display_name, player.hp, player.max_hp, _run.gold, _run.deck.size(),
 	]
@@ -129,12 +131,14 @@ func _show_vendor() -> void:
 		var sold: bool = offers[i]["sold"]
 		var text := "%s (%d)\n%s\n%d gold" % [card.display_name, card.cost, card.describe(), offers[i]["price"]]
 		var button := _add_button(box, "%s  (sold)" % card.display_name if sold else text, _buy_card.bind(i))
-		button.disabled = sold
+		button.disabled = sold or _run.gold < offers[i]["price"]
 		button.custom_minimum_size = Vector2(300, 56)
+	# Disabled up front when the purchase would be refused, so the player is not
+	# sent into a picker or a click that can only fail.
 	var remove := _add_button(box, "Remove a card (%d gold)" % Vendor.REMOVE_CARD_PRICE, _start_removing)
-	remove.disabled = vendor.has_removed()
+	remove.disabled = vendor.has_removed() or _run.gold < Vendor.REMOVE_CARD_PRICE or _run.deck.size() <= 1
 	var heal := _add_button(box, "Heal %d HP (%d gold)" % [Vendor.HEAL_AMOUNT, Vendor.HEAL_PRICE], _buy_heal)
-	heal.disabled = vendor.has_healed()
+	heal.disabled = vendor.has_healed() or _run.gold < Vendor.HEAL_PRICE or _run.player.hp >= _run.player.max_hp
 	_add_button(box, "Leave", _leave_vendor)
 
 
