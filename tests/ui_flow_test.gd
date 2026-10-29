@@ -5,6 +5,9 @@ extends SceneTree
 ## a view that forgets to call into RunState (the rules tests cannot see that).
 ## Run via scripts/check.ps1.
 
+## Scratch save path: the developer's real user://run_save.json must never be touched.
+const TEST_SAVE := "user://ui_flow_test_save.json"
+
 var _failures := 0
 
 
@@ -19,6 +22,15 @@ func _buttons(node: Node, out: Array) -> void:
 		out.append(node)
 	for child in node.get_children():
 		_buttons(child, out)
+
+
+func _all_text(node: Node) -> String:
+	var text := ""
+	if node is Label:
+		text += (node as Label).text + "\n"
+	for child in node.get_children():
+		text += _all_text(child)
+	return text
 
 
 func _first_enabled(body: Node) -> Button:
@@ -40,7 +52,9 @@ func _find(body: Node, prefix: String) -> Button:
 
 
 func _initialize() -> void:
+	RunSave.delete(TEST_SAVE)
 	var scene: Control = load("res://run.tscn").instantiate()
+	scene.save_path = TEST_SAVE
 	root.add_child(scene)
 	await process_frame
 	var body: Control = scene.get_node("%Body")
@@ -141,10 +155,65 @@ func _initialize() -> void:
 	_check(fights_ended == 5 and rewards == 4, "five fights ended and four rewards were resolved, the boss giving none (%d, %d)" % [fights_ended, rewards])
 	_check(vendor_visits == 2 and rests == 2 and stories == 3, "two vendors, two rests and three story stops were visited (%d, %d, %d)" % [vendor_visits, rests, stories])
 	_check(_find(body, "New Run") != null, "the end card offers New Run")
+	_check(not FileAccess.file_exists(TEST_SAVE), "the save is deleted when the run ends")
+	var win_text := _all_text(body)
+	_check(win_text.contains("Outcome: Escaped") and win_text.contains("Stops cleared: 12/12"), "the win summary shows outcome and stops cleared")
+	_check(win_text.contains("Final HP: %d/%d" % [run_state.player.hp, run_state.player.max_hp]), "the win summary shows final HP")
+	_check(win_text.contains("Deck: %d cards" % run_state.deck.size()) and win_text.contains("Gold: %d" % run_state.gold), "the win summary shows deck size and gold")
 	scene._new_run()
 	await process_frame
 	_check(scene._run.stop_index == 0 and not scene._run.finished and scene._run.gold == 0, "New Run starts a fresh run")
 	_check(body.get_child_count() == 1, "New Run leaves exactly one panel in the body")
+	_check(FileAccess.file_exists(TEST_SAVE), "a new run is saved at its first stop")
+
+	# Defeat summary.
+	var lost := RunState.new(2)
+	lost.read_story()
+	lost.gold = 21
+	lost.player.hp = 0
+	lost.finished = true
+	scene._run = lost
+	scene._show_stop()
+	await process_frame
+	var loss_text := _all_text(body)
+	_check(loss_text.contains("Outcome: Defeated") and loss_text.contains("Stops cleared: 1/12") and loss_text.contains("Final HP: 0/%d" % lost.player.max_hp) and loss_text.contains("Gold: 21"), "the loss summary shows the right data")
+	_check(not FileAccess.file_exists(TEST_SAVE), "the save is deleted after a defeat")
+	scene.queue_free()
+	await process_frame
+
+	# Continue: a valid save is offered, and Continue resumes exactly that run.
+	var saved := RunState.new(77)
+	saved.read_story()
+	saved.gold = 9
+	saved.player.hp = 30
+	_check(RunSave.save(saved, TEST_SAVE) == "", "the test run could be saved")
+	var resumed_scene: Control = load("res://run.tscn").instantiate()
+	resumed_scene.save_path = TEST_SAVE
+	root.add_child(resumed_scene)
+	await process_frame
+	var resumed_body: Control = resumed_scene.get_node("%Body")
+	_check(resumed_scene._run == null and _find(resumed_body, "Continue") != null and _find(resumed_body, "New Run") != null, "a valid save offers Continue and New Run without starting")
+	_find(resumed_body, "Continue").pressed.emit()
+	await process_frame
+	var resumed: RunState = resumed_scene._run
+	_check(resumed != null and resumed.stop_index == 1 and resumed.gold == 9 and resumed.player.hp == 30, "Continue resumes the saved run")
+	_check(resumed_body.get_child_count() == 1, "Continue shows exactly one panel")
+	resumed_scene.queue_free()
+	await process_frame
+
+	# A corrupt save falls back to a new run with a visible message.
+	var bad := FileAccess.open(TEST_SAVE, FileAccess.WRITE)
+	bad.store_string("{ not json")
+	bad.close()
+	var bad_scene: Control = load("res://run.tscn").instantiate()
+	bad_scene.save_path = TEST_SAVE
+	root.add_child(bad_scene)
+	await process_frame
+	_check(bad_scene._run != null and bad_scene._run.stop_index == 0, "a corrupt save starts a new run")
+	_check((bad_scene.get_node("%HeaderLabel") as Label).text.contains("could not be loaded"), "a corrupt save shows a message")
+	bad_scene.queue_free()
+	await process_frame
+	RunSave.delete(TEST_SAVE)
 
 	print("UI FLOW FAILURES: %d" % _failures)
 	quit(1 if _failures > 0 else 0)

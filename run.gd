@@ -13,10 +13,40 @@ var _run: RunState
 var _vendor_message := ""
 ## True while the vendor panel shows the pick-a-card-to-remove list.
 var _removing := false
+## Where the in-progress run is saved; tests point this at a scratch file.
+var save_path := RunSave.DEFAULT_PATH
+## One-off message shown above the header line: a bad save on launch, or a save/delete failure.
+var _notice := ""
+var _notice_shown := false
 
 
 func _ready() -> void:
-	_new_run()
+	var loaded := RunSave.load_file(save_path)
+	if loaded.run != null:
+		_offer_continue(loaded.run)
+	else:
+		if not loaded.missing:
+			_notice = "Saved run could not be loaded (%s). Started a new run." % loaded.error
+			push_warning(_notice)
+		_new_run()
+
+
+## Launch with a valid save: nothing starts until the player picks Continue or New Run.
+func _offer_continue(saved: RunState) -> void:
+	_header.text = "Saved run found"
+	var box := _panel("Stop %d/%d, %s HP %d/%d, Gold %d, Deck %d" % [
+		saved.stop_index + 1, saved.stops.size(), saved.player.display_name, saved.player.hp, saved.player.max_hp, saved.gold, saved.deck.size(),
+	])
+	_add_button(box, "Continue", _continue_run.bind(saved))
+	_add_button(box, "New Run", _new_run)
+
+
+func _continue_run(saved: RunState) -> void:
+	_run = saved
+	_vendor_message = ""
+	_removing = false
+	_clear_body()
+	_show_stop()
 
 
 func _new_run() -> void:
@@ -27,13 +57,20 @@ func _new_run() -> void:
 
 
 func _show_stop() -> void:
-	_update_header()
+	# A notice lives for one redraw past the one that first showed it.
+	if _notice_shown:
+		_notice = ""
 	_clear_body()
 	if _run.finished:
+		_delete_save()
+		_update_header()
 		_show_end()
 	elif _run.reward_pending():
+		_update_header()
 		_show_reward()
 	else:
+		_autosave()
+		_update_header()
 		match _run.current_stop().type:
 			RunState.StopType.COMBAT:
 				_show_combat()
@@ -48,12 +85,14 @@ func _show_stop() -> void:
 func _update_header() -> void:
 	var player := _run.player
 	var position := mini(_run.stop_index + 1, _run.stops.size())
+	var prefix := _notice + "\n" if _notice != "" else ""
 	var stop_text := _run.current_stop().describe() if not _run.finished else "Journey's end"
 	if _run.reward_pending():
 		stop_text = "Reward"
-	_header.text = "Stop %d/%d: %s    |    %s  HP %d/%d    |    Gold %d    |    Deck %d" % [
+	_header.text = prefix + "Stop %d/%d: %s    |    %s  HP %d/%d    |    Gold %d    |    Deck %d" % [
 		position, _run.stops.size(), stop_text, player.display_name, player.hp, player.max_hp, _run.gold, _run.deck.size(),
 	]
+	_notice_shown = _notice != ""
 
 
 func _clear_body() -> void:
@@ -201,8 +240,32 @@ func _rest() -> void:
 
 func _show_end() -> void:
 	var title := "You slip off the train and into the light." if _run.escaped else "You are claimed by the afterlife."
-	var box := _panel("%s\nStops passed: %d/%d   Deck: %d cards" % [title, _run.stop_index, _run.stops.size(), _run.deck.size()])
+	var box := _panel("%s\nOutcome: %s" % [title, "Escaped" if _run.escaped else "Defeated"])
+	var summary := Label.new()
+	summary.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	summary.text = "Stops cleared: %d/%d\nFinal HP: %d/%d\nDeck: %d cards\nGold: %d" % [
+		_run.stop_index, _run.stops.size(), _run.player.hp, _run.player.max_hp, _run.deck.size(), _run.gold,
+	]
+	box.add_child(summary)
 	_add_button(box, "New Run", _new_run)
+
+
+## Saves the run at the start of a stop (never mid-fight). A failure is shown, not fatal.
+func _autosave() -> void:
+	if not _run.at_stop_boundary():
+		return
+	var error := RunSave.save(_run, save_path)
+	if error != "":
+		_notice = "Could not save the run: %s" % error
+		push_warning(_notice)
+
+
+## A finished run has nothing to resume.
+func _delete_save() -> void:
+	var error := RunSave.delete(save_path)
+	if error != "":
+		_notice = error
+		push_warning(_notice)
 
 
 ## Adds a centred column to the body and returns it; the first line is `title`.
