@@ -4,10 +4,19 @@ extends RefCounted
 ## Uses only the public Combat API.
 
 
-## Plays cards until the policy passes or the fight ends, then ends the turn.
-## Returns false (after logging) if the policy picked an unplayable card.
+## A turn that is still going after this many plays is cut off. Zero-cost draw
+## cards can recycle themselves forever in a thin deck, and Combat has no cap of
+## its own, so an unattended player must bring one.
+const MAX_PLAYS_PER_TURN := 50
+
+
+## Plays cards until the policy passes, the play cap is hit, or the fight ends,
+## then ends the turn. Returns false (after logging) if the policy picked an
+## unplayable card.
 static func play_turn(combat: Combat) -> bool:
-	while true:
+	var plays := 0
+	while plays < MAX_PLAYS_PER_TURN:
+		plays += 1
 		var pick := _pick_card(combat)
 		if pick == -1:
 			break
@@ -83,7 +92,7 @@ static func _incoming_damage(combat: Combat) -> int:
 	for enemy in combat.living_enemies():
 		var intent := enemy.current_intent()
 		if intent != null and intent.kind == CardEffect.Kind.DAMAGE:
-			total += intent.amount
+			total += combat.player.damage_after_status(intent.amount)
 	return total
 
 

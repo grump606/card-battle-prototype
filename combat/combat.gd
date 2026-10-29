@@ -67,7 +67,11 @@ func _init(player_combatant: Combatant, deck: Array[CardData], enemy_datas: Arra
 
 
 func start() -> void:
-	assert(phase == Phase.NOT_STARTED, "Combat already started")
+	if phase != Phase.NOT_STARTED:
+		# Checked explicitly (not assert) so a release build cannot resurrect an
+		# ended or abandoned fight.
+		push_error("Combat.start: the fight was already started or has ended")
+		return
 	_begin_player_turn()
 
 
@@ -80,6 +84,7 @@ func abandon() -> void:
 	phase = Phase.ENDED
 	player.changed.disconnect(_player_changed_link)
 	player.clear_block()
+	player.clear_statuses()
 
 
 func living_enemies() -> Array[EnemyUnit]:
@@ -209,8 +214,10 @@ func _check_end() -> bool:
 	if not (victory or player.is_dead()):
 		return false
 	phase = Phase.ENDED
-	# Block is per-fight; clear it so callers between fights do not see it stale.
+	# Block and statuses are per-fight; clear them so callers between fights do
+	# not see them stale.
 	player.clear_block()
+	player.clear_statuses()
 	state_changed.emit()
 	# The player can only die on an enemy action and enemies only die on the
 	# player's, so both cannot be true at once.

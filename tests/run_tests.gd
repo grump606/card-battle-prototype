@@ -41,6 +41,9 @@ func _initialize() -> void:
 	_test_damage_after_status()
 	_test_abandon_releases_player()
 	_test_create_rejects_dead_player()
+	_test_start_cannot_resurrect_a_fight()
+	_test_statuses_cleared_when_fight_ends()
+	_test_policy_survives_zero_cost_draw_loop()
 	_failures += load("res://tests/content_tests.gd").new().run()
 	_failures += load("res://tests/run_state_tests.gd").new().run()
 	_failures += load("res://tests/vendor_tests.gd").new().run()
@@ -556,3 +559,47 @@ func _test_abandon_releases_player() -> void:
 func _test_create_rejects_dead_player() -> void:
 	var dead := Combatant.new("d", 10, 0)
 	_check(Combat.create(dead, _deck(10, _card(1, _dmg(1))), _enemies(1, 10, [])) == null, "create rejects a dead player")
+
+
+# start() on an ended fight logs an error; that output is expected here.
+func _test_start_cannot_resurrect_a_fight() -> void:
+	var combat := Combat.new(Combatant.new("p", 20), _deck(10, _card(1, _dmg(50))), _enemies(1, 30, []))
+	combat.start()
+	combat.play_card(0)
+	var turn_at_end := combat.turn
+	combat.start()
+	_check(combat.phase == Combat.Phase.ENDED and combat.turn == turn_at_end, "start() cannot restart an ended fight")
+	var twice := Combat.new(Combatant.new("p", 20), _deck(10, _card(1, _dmg(1))), _enemies(1, 30, []))
+	twice.start()
+	var hand := twice.piles.hand.size()
+	twice.start()
+	_check(twice.turn == 1 and twice.piles.hand.size() == hand, "start() twice does not begin another turn")
+	var abandoned := Combat.new(Combatant.new("p", 20), _deck(10, _card(1, _dmg(1))), _enemies(1, 30, []))
+	abandoned.abandon()
+	abandoned.start()
+	_check(abandoned.phase == Combat.Phase.ENDED, "start() cannot revive an abandoned fight")
+
+
+func _test_statuses_cleared_when_fight_ends() -> void:
+	var player := Combatant.new("p", 20)
+	var combat := Combat.new(player, _deck(10, _card(1, _dmg(50))), _enemies(1, 30, []))
+	combat.start()
+	player.apply_status(Combatant.Status.EXPOSED, 3)
+	combat.play_card(0)
+	_check(combat.phase == Combat.Phase.ENDED and player.status_turns(Combatant.Status.EXPOSED) == 0, "player statuses are cleared when the fight ends")
+	var quitter := Combatant.new("q", 20)
+	var other := Combat.new(quitter, _deck(10, _card(1, _dmg(1))), _enemies(1, 30, []))
+	other.start()
+	quitter.apply_status(Combatant.Status.EXPOSED, 2)
+	other.abandon()
+	_check(quitter.status_turns(Combatant.Status.EXPOSED) == 0, "player statuses are cleared when a fight is abandoned")
+
+
+# A lone zero-cost draw card recycles itself forever; the policy must still end the turn.
+func _test_policy_survives_zero_cost_draw_loop() -> void:
+	var glimpse := load(StarterContent.GLIMPSE_EXIT_PATH) as CardData
+	var deck: Array[CardData] = [glimpse]
+	var combat := Combat.new(Combatant.new("p", 20), deck, _enemies(1, 30, []))
+	combat.start()
+	_check(SimPolicy.play_turn(combat), "policy handles a self-recycling zero-cost deck")
+	_check(combat.turn == 2, "the capped turn still ended")
