@@ -52,6 +52,7 @@ var escaped: bool = false
 var gold: int = 0
 
 var _vendor: Vendor = null
+var _active_combat: Combat = null
 var _rng := RandomNumberGenerator.new()
 var _reward_choices: Array[CardData] = []
 var _reward_pending: bool = false
@@ -74,43 +75,54 @@ func reward_pending() -> bool:
 
 
 ## Builds the fight for the current COMBAT stop, or null (after logging why) if
-## this is not a combat stop or the content failed to load.
+## this is not a combat stop or the content failed to load. Asking again at the
+## same stop abandons the previous fight (releasing its link to the player) and
+## builds a new one, which re-rolls the encounter.
 func start_combat() -> Combat:
 	var stop := current_stop()
 	if stop == null or stop.type != StopType.COMBAT or _reward_pending:
 		push_error("RunState.start_combat: not at a fresh combat stop")
 		return null
+	if _active_combat != null:
+		_active_combat.abandon()
+		_active_combat = null
 	var enemies := StarterContent.varied_encounter(stop.enemy_count, _rng)
-	return Combat.create(player, deck, enemies, _rng.randi())
+	_active_combat = Combat.create(player, deck, enemies, _rng.randi())
+	return _active_combat
 
 
-## Records how a fight ended. A defeat ends the run; a victory pays gold and
-## offers a reward that must be taken or skipped before the line moves on.
+## Records how the current fight ended. A defeat ends the run; a victory pays
+## gold and offers a reward that must be taken or skipped before the line moves
+## on. Only valid at a COMBAT stop that has no reward pending and is not finished
+## (anything else is a caller bug: it is logged and changes nothing).
 func complete_combat(victory: bool) -> void:
+	var stop := current_stop()
+	if finished or _reward_pending or stop == null or stop.type != StopType.COMBAT:
+		push_error("RunState.complete_combat: not at a combat stop awaiting a result")
+		return
+	_active_combat = null
 	if not victory:
 		finished = true
 		escaped = false
 		return
-	var stop := current_stop()
-	if stop != null and stop.type == StopType.COMBAT:
-		gold += Vendor.gold_for_win(stop.enemy_count)
+	gold += Vendor.gold_for_win(stop.enemy_count)
+	_roll_rewards()
 	_reward_pending = true
 
 
 ## Up to REWARD_CHOICES distinct cards to pick from, stable until the reward is
-## taken or skipped (asking again does not re-roll).
+## taken or skipped. Rolled when the fight is won, so a seed plays out the same
+## whether or not the reward screen is shown. Returns a copy.
 func reward_choices() -> Array[CardData]:
-	if _reward_pending and _reward_choices.is_empty():
-		var pool := _distinct_cards(StarterContent.extended_deck())
-		_shuffle(pool)
-		_reward_choices.assign(pool.slice(0, REWARD_CHOICES))
-	return _reward_choices
+	var copy: Array[CardData] = []
+	copy.assign(_reward_choices)
+	return copy
 
 
 ## Adds `card` to the deck (null skips the reward) and moves to the next stop.
-## Rejects a card that was not offered.
+## Rejects a card that was not offered, or any call once the run is finished.
 func resolve_reward(card: CardData) -> bool:
-	if not _reward_pending:
+	if finished or not _reward_pending:
 		return false
 	if card != null:
 		if not reward_choices().has(card):
@@ -162,10 +174,11 @@ func vendor() -> Vendor:
 	return _vendor
 
 
-## Vendor purchases: each forwards to the Vendor, then copies its gold back. A
-## failed purchase changes nothing; when not at a vendor stop they fail.
+## Vendor purchases: RunState owns gold, so each pushes the run's gold into the
+## Vendor before acting and copies it back after. A failed purchase changes
+## nothing; when not at a vendor stop they fail.
 func vendor_buy_card(offer_index: int) -> Vendor.Result:
-	var v := vendor()
+	var v := _vendor_with_run_gold()
 	if v == null:
 		return Vendor.Result.fail("not at a vendor")
 	var result := v.buy_card(offer_index)
@@ -174,7 +187,7 @@ func vendor_buy_card(offer_index: int) -> Vendor.Result:
 
 
 func vendor_remove_card(deck_index: int) -> Vendor.Result:
-	var v := vendor()
+	var v := _vendor_with_run_gold()
 	if v == null:
 		return Vendor.Result.fail("not at a vendor")
 	var result := v.remove_card(deck_index)
@@ -183,7 +196,7 @@ func vendor_remove_card(deck_index: int) -> Vendor.Result:
 
 
 func vendor_buy_heal() -> Vendor.Result:
-	var v := vendor()
+	var v := _vendor_with_run_gold()
 	if v == null:
 		return Vendor.Result.fail("not at a vendor")
 	var result := v.buy_heal(player)
@@ -200,7 +213,15 @@ func leave_vendor() -> bool:
 	return true
 
 
+func _vendor_with_run_gold() -> Vendor:
+	var v := vendor()
+	if v != null:
+		v.gold = gold
+	return v
+
+
 func _advance() -> void:
+	_vendor = null
 	stop_index += 1
 	if stop_index >= stops.size():
 		finished = true
@@ -222,6 +243,12 @@ func _default_line() -> Array[Stop]:
 		Stop.new(StopType.STORY, 0, 3),
 		Stop.new(StopType.COMBAT, 3),
 	]
+
+
+func _roll_rewards() -> void:
+	var pool := _distinct_cards(StarterContent.extended_deck())
+	_shuffle(pool)
+	_reward_choices.assign(pool.slice(0, REWARD_CHOICES))
 
 
 func _distinct_cards(cards: Array[CardData]) -> Array[CardData]:

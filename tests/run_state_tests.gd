@@ -21,6 +21,10 @@ func run() -> int:
 	_test_seed_determinism()
 	_test_gold_from_wins()
 	_test_vendor_flow()
+	_test_complete_combat_preconditions()
+	_test_vendor_gold_and_stale_state()
+	_test_start_combat_twice_releases_first()
+	_test_rewards_rolled_eagerly_and_copied()
 	return _failures
 
 
@@ -272,3 +276,102 @@ func _test_vendor_flow() -> void:
 	var poor := _at_vendor(13)
 	poor.gold = 0
 	_check(poor.vendor() != null and not poor.vendor_buy_card(0).ok and poor.gold == 0, "with no gold every purchase is refused, gold stays at 0")
+
+
+# These misuse the API on purpose; the push_error output is expected here.
+func _test_complete_combat_preconditions() -> void:
+	var state := _at_first_fight(21)
+	state.complete_combat(true)
+	var gold := state.gold
+	state.complete_combat(true)
+	_check(state.gold == gold, "a second victory while the reward is pending pays nothing")
+	state.complete_combat(false)
+	_check(not state.finished and state.reward_pending(), "a defeat cannot be recorded while a reward is pending")
+
+	var story := RunState.new(22)
+	story.complete_combat(true)
+	_check(story.gold == 0 and not story.reward_pending() and story.stop_index == 0, "complete_combat at a story stop changes nothing")
+
+	var rest_stop := _at_first_fight(23)
+	_win_and_skip(rest_stop)
+	_win_and_skip(rest_stop)
+	var hp := rest_stop.player.hp
+	var gold_at_rest := rest_stop.gold
+	_check(rest_stop.current_stop().type == RunState.StopType.REST, "setup: at the rest stop")
+	rest_stop.complete_combat(true)
+	_check(rest_stop.gold == gold_at_rest and not rest_stop.reward_pending() and rest_stop.stop_index == 3, "a victory cannot be recorded at a rest stop (the rest cannot be skipped)")
+	_check(rest_stop.player.hp == hp, "rest stop untouched")
+
+	var dead := _at_first_fight(24)
+	dead.complete_combat(false)
+	dead.complete_combat(true)
+	_check(dead.finished and not dead.escaped and not dead.reward_pending() and dead.gold == 0, "nothing can be recorded after a defeat")
+	_check(not dead.resolve_reward(null), "no reward can be resolved after a defeat")
+
+	var winner := RunState.new(25)
+	var guard := 0
+	while not winner.finished and guard < 50:
+		guard += 1
+		match winner.current_stop().type:
+			RunState.StopType.COMBAT:
+				_win_and_skip(winner)
+			RunState.StopType.STORY:
+				winner.read_story()
+			RunState.StopType.VENDOR:
+				winner.leave_vendor()
+			_:
+				winner.rest()
+	var gold_done := winner.gold
+	_check(winner.finished and winner.escaped, "setup: an escaped run")
+	winner.complete_combat(false)
+	winner.complete_combat(true)
+	_check(winner.escaped and winner.gold == gold_done and winner.stop_index == winner.stops.size() and not winner.reward_pending(), "a finished run cannot be rewritten or pushed past the line")
+	_check(not winner.resolve_reward(null), "no reward after the run finished")
+
+
+func _test_vendor_gold_and_stale_state() -> void:
+	var state := _at_vendor(26)
+	var vendor := state.vendor()
+	state.gold = 100  # changed after the vendor already exists
+	var bought := state.vendor_buy_card(0)
+	_check(bought.ok and state.gold == 100 - bought.spent, "gold changed while a vendor exists is honoured, not overwritten")
+	state.leave_vendor()
+	_check(state.vendor() == null, "the vendor is gone after leaving")
+	_check(vendor != null and state.stop_index == 6, "setup: moved past the vendor stop")
+
+
+func _test_start_combat_twice_releases_first() -> void:
+	var state := _at_first_fight(27)
+	var first := state.start_combat()
+	var second := state.start_combat()
+	_check(first != null and second != null and first != second, "asking again builds a new fight")
+	_check(first.phase == Combat.Phase.ENDED, "the previous fight is abandoned")
+	_check(state.player.changed.get_connections().size() == 1, "only the current fight stays linked to the player")
+	second.abandon()
+
+
+func _test_rewards_rolled_eagerly_and_copied() -> void:
+	var shown := _at_first_fight(31)
+	var skipped := _at_first_fight(31)
+	shown.complete_combat(true)
+	shown.reward_choices()
+	shown.resolve_reward(null)
+	skipped.complete_combat(true)
+	skipped.resolve_reward(null)
+	var fight_shown := shown.start_combat()
+	var fight_skipped := skipped.start_combat()
+	var same := fight_shown != null and fight_skipped != null and fight_shown.enemies.size() == fight_skipped.enemies.size()
+	if same:
+		for i in fight_shown.enemies.size():
+			same = same and fight_shown.enemies[i].display_name == fight_skipped.enemies[i].display_name
+	_check(same, "a seed plays out the same whether or not the reward screen was shown")
+	if fight_shown != null:
+		fight_shown.abandon()
+	if fight_skipped != null:
+		fight_skipped.abandon()
+
+	var state := _at_first_fight(32)
+	state.complete_combat(true)
+	var choices := state.reward_choices()
+	choices.clear()
+	_check(state.reward_choices().size() == RunState.REWARD_CHOICES, "mutating the returned choices does not change the offer")
