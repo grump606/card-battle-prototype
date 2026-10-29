@@ -18,9 +18,9 @@ func _initialize() -> void:
 		return
 	var fights: int = opts["fights"]
 	var base_seed: int = opts["seed"]
-	var deck := StarterContent.deck()
+	var deck := StarterContent.extended_deck()
 	if deck.is_empty():
-		printerr("balance_sim: starter deck failed to load")
+		printerr("balance_sim: extended deck failed to load")
 		quit(1)
 		return
 
@@ -32,13 +32,16 @@ func _initialize() -> void:
 		var total_turns := 0
 		var win_hp := 0
 		for i in fights:
-			var enemy_datas := StarterContent.early_encounter(count)
+			var fight_seed := base_seed * 1000003 + count * 100003 + i
+			var rng := RandomNumberGenerator.new()
+			rng.seed = fight_seed
+			var enemy_datas := StarterContent.varied_encounter(count, rng)
 			if enemy_datas.size() != count:
 				printerr("balance_sim: encounter of %d enemies failed to load" % count)
 				quit(1)
 				return
 			var player := Combatant.new("Sim", PLAYER_START_HP)
-			var combat := Combat.new(player, deck, enemy_datas, base_seed * 1000003 + count * 100003 + i)
+			var combat := Combat.new(player, deck, enemy_datas, fight_seed)
 			var result := _run_fight(combat)
 			total_turns += combat.turn
 			if result == 1:

@@ -12,6 +12,7 @@ func run() -> int:
 	_test_extended_deck()
 	_test_existing_content_unchanged()
 	_test_varied_encounter()
+	_test_encounter_composition()
 	return _failures
 
 
@@ -49,8 +50,12 @@ func _test_new_enemies_load() -> void:
 			_check(enemy.max_hp > 0 and not enemy.intents.is_empty(), "enemy has hp and intents: %s" % path)
 	var wisp := StarterContent._load_enemy(StarterContent.WISP_PATH)
 	var colossus := StarterContent._load_enemy(StarterContent.COLOSSUS_PATH)
-	if wisp != null and colossus != null:
-		_check(wisp.max_hp < 12 and colossus.max_hp > 30, "wisp fragile, colossus tanky")
+	var shade := StarterContent.lost_shade()
+	var warden := StarterContent.warden()
+	if wisp != null and colossus != null and shade != null and warden != null:
+		# Relative, so retuning numbers does not break the test; the roles must hold.
+		_check(wisp.max_hp < shade.max_hp, "wisp is the most fragile small enemy")
+		_check(colossus.max_hp > warden.max_hp, "colossus is tankier than the warden")
 		_check(wisp.intents.size() != colossus.intents.size(), "distinct intent cycle lengths")
 
 
@@ -105,3 +110,25 @@ func _test_varied_encounter() -> void:
 	for i in duplicate_check.size():
 		for j in range(i + 1, duplicate_check.size()):
 			_check(duplicate_check[i] != duplicate_check[j], "encounter slots own separate EnemyData")
+
+
+## Packs must stay survivable: trios are all small enemies, pairs have at most one big one.
+func _test_encounter_composition() -> void:
+	var big_names := [StarterContent.warden().display_name, (StarterContent._load_enemy(StarterContent.COLOSSUS_PATH)).display_name]
+	var saw_big_pair := false
+	var saw_small_pair := false
+	for seed_value in 100:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = seed_value
+		var trio := StarterContent.varied_encounter(3, rng)
+		for enemy in trio:
+			_check(not big_names.has(enemy.display_name), "trio has no big enemy (seed %d)" % seed_value)
+		var pair := StarterContent.varied_encounter(2, rng)
+		var big_count := 0
+		for enemy in pair:
+			if big_names.has(enemy.display_name):
+				big_count += 1
+		_check(big_count <= 1, "pair has at most one big enemy (seed %d)" % seed_value)
+		saw_big_pair = saw_big_pair or big_count == 1
+		saw_small_pair = saw_small_pair or big_count == 0
+	_check(saw_big_pair and saw_small_pair, "both pair compositions occur across seeds")

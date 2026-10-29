@@ -27,7 +27,9 @@ func _ready() -> void:
 func _start_combat() -> void:
 	var player := Combatant.new("Wanderer", PLAYER_START_HP)
 	var enemy_count := randi_range(1, Combat.MAX_ENEMIES)
-	_combat = Combat.new(player, StarterContent.deck(), StarterContent.early_encounter(enemy_count), randi())
+	var encounter_rng := RandomNumberGenerator.new()
+	encounter_rng.randomize()
+	_combat = Combat.new(player, StarterContent.extended_deck(), StarterContent.varied_encounter(enemy_count, encounter_rng), randi())
 	_combat.state_changed.connect(_refresh)
 	_combat.combat_ended.connect(_on_combat_ended)
 	_combat.card_played.connect(_on_card_played)
