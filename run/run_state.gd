@@ -17,7 +17,7 @@ const REWARD_CHOICES := 3
 ## One stop on the line. `enemy_count` only matters for COMBAT stops and
 ## `beat_index` (into StoryContent) only for STORY stops. A COMBAT stop with
 ## `boss` set fights StarterContent.boss_encounter() instead of a random pack,
-## and winning it pays gold but offers no card reward.
+## and winning it ends the run with no gold and no card reward.
 class Stop:
 	var type: StopType
 	var enemy_count: int
@@ -99,7 +99,8 @@ func start_combat() -> Combat:
 
 ## Records how the current fight ended. A defeat ends the run; a victory pays
 ## gold and offers a reward that must be taken or skipped before the line moves
-## on. Only valid at a COMBAT stop that has no reward pending and is not finished
+## on. Beating the boss stop is the exception: it pays nothing (no later stop could
+## spend it), offers no reward and ends the run as an escape. Only valid at a COMBAT stop that has no reward pending and is not finished
 ## (anything else is a caller bug: it is logged and changes nothing).
 func complete_combat(victory: bool) -> void:
 	var stop := current_stop()
@@ -111,11 +112,11 @@ func complete_combat(victory: bool) -> void:
 		finished = true
 		escaped = false
 		return
-	gold += Vendor.gold_for_win(stop.enemy_count)
 	if stop.boss:
-		# The boss ends the line of fights: no card to pick, move straight on.
+		# The boss ends the line: no gold (nothing left to spend it on), no card to pick.
 		_advance()
 		return
+	gold += Vendor.gold_for_win(stop.enemy_count)
 	_roll_rewards()
 	_reward_pending = true
 

@@ -23,17 +23,18 @@ const WHISPERER_PATH := "res://data/enemies/pale_whisperer.tres"
 ## The run's boss. Deliberately not in ALL_ENEMY_PATHS: it only appears via boss_encounter().
 const CONDUCTOR_PATH := "res://data/enemies/the_conductor.tres"
 const EXTENDED_DECK_SIZE := 14
-## Fixed order: warden, lost shade, wisp, colossus, whisperer. The colossus is a solo-only
+## The regular enemy types in a fixed order (the boss is separate, see CONDUCTOR_PATH): warden,
+## lost shade, wisp, colossus, whisperer. The colossus is a solo-only
 ## elite (it was unwinnable next to a second enemy in the balance sim); the
 ## warden can share a pair; small enemies are what packs are made of.
 const ALL_ENEMY_PATHS: Array[String] = [WARDEN_PATH, LOST_SHADE_PATH, WISP_PATH, COLOSSUS_PATH, WHISPERER_PATH]
 const PAIR_BIG_ENEMY_PATHS: Array[String] = [WARDEN_PATH]
 const SMALL_ENEMY_PATHS: Array[String] = [LOST_SHADE_PATH, WISP_PATH, WHISPERER_PATH]
 ## Chance that a two-enemy encounter is a big plus a small enemy rather than two small ones.
-## Trios leave out the Lost Shade (the sturdiest small enemy): three of them out-damaged the
-## run mid-line, and the fragile wisp and whisperer keep a three-way fight winnable.
-const TRIO_ENEMY_PATHS: Array[String] = [WISP_PATH, WHISPERER_PATH]
 const BIG_PAIR_CHANCE := 0.15
+## Trios leave out the Lost Shade (the sturdiest small enemy): three of them out-damaged the
+## run mid-line, and the fragile wisps and whisperers keep a three-way fight winnable.
+const TRIO_EXCLUDED_PATHS: Array[String] = [LOST_SHADE_PATH]
 
 
 ## Card definitions are immutable data, so deck slots of the same card share one instance.
@@ -127,13 +128,22 @@ static func varied_encounter(enemy_count: int, rng: RandomNumberGenerator) -> Ar
 				paths.append(_pick_path(SMALL_ENEMY_PATHS, rng))
 		_:
 			for i in count:
-				paths.append(_pick_path(TRIO_ENEMY_PATHS, rng))
+				paths.append(_pick_path(_trio_paths(), rng))
 	var enemies: Array[EnemyData] = []
 	for path in paths:
 		var enemy := _load_enemy(path)
 		if enemy != null:
 			enemies.append(enemy)
 	return enemies
+
+
+## SMALL_ENEMY_PATHS minus TRIO_EXCLUDED_PATHS, so a new small enemy joins trios by default.
+static func _trio_paths() -> Array[String]:
+	var paths: Array[String] = []
+	for path in SMALL_ENEMY_PATHS:
+		if not TRIO_EXCLUDED_PATHS.has(path):
+			paths.append(path)
+	return paths
 
 
 ## The boss fight: the Conductor alone. Empty (cause logged) if it fails to load,

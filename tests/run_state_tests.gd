@@ -221,7 +221,7 @@ func _test_seed_determinism() -> void:
 	_check(ids_a == ids_b, "same seed offers the same rewards")
 
 
-## Moves a run to the VENDOR stop (index 5) by winning/skipping and resting on the way.
+## Moves a run to the first VENDOR stop (index 6) by winning/skipping and resting on the way.
 func _at_vendor(rng_seed: int) -> RunState:
 	var state := _at_first_fight(rng_seed)
 	var guard := 0
@@ -419,12 +419,12 @@ func _test_survivors_from_mutation_audit() -> void:
 	# The line's exact shape, so a silent edit to it is noticed.
 	var shape := []
 	for stop in RunState.new(1).stops:
-		shape.append([stop.type, stop.enemy_count])
+		shape.append([stop.type, stop.enemy_count, stop.beat_index, stop.boss])
 	var want := [
-		[RunState.StopType.STORY, 0], [RunState.StopType.COMBAT, 1], [RunState.StopType.COMBAT, 2],
-		[RunState.StopType.REST, 0], [RunState.StopType.STORY, 0], [RunState.StopType.COMBAT, 2],
-		[RunState.StopType.VENDOR, 0], [RunState.StopType.COMBAT, 3], [RunState.StopType.REST, 0],
-		[RunState.StopType.VENDOR, 0], [RunState.StopType.STORY, 0], [RunState.StopType.COMBAT, 1],
+		[RunState.StopType.STORY, 0, 0, false], [RunState.StopType.COMBAT, 1, 0, false], [RunState.StopType.COMBAT, 2, 0, false],
+		[RunState.StopType.REST, 0, 0, false], [RunState.StopType.STORY, 0, 1, false], [RunState.StopType.COMBAT, 2, 0, false],
+		[RunState.StopType.VENDOR, 0, 0, false], [RunState.StopType.COMBAT, 3, 0, false], [RunState.StopType.REST, 0, 0, false],
+		[RunState.StopType.VENDOR, 0, 0, false], [RunState.StopType.STORY, 0, 3, false], [RunState.StopType.COMBAT, 1, 0, true],
 	]
 	_check(shape == want, "the default line has the documented shape: %s" % str(shape))
 
@@ -457,7 +457,7 @@ func _test_boss_stop() -> void:
 
 	var gold_before := state.gold
 	state.complete_combat(true)
-	_check(state.gold == gold_before + Vendor.gold_for_win(1), "beating the boss pays gold")
+	_check(state.gold == gold_before, "beating the boss pays no gold (nothing left to spend it on)")
 	_check(not state.reward_pending() and state.reward_choices().is_empty(), "beating the boss offers no card reward")
 	_check(state.finished and state.escaped, "beating the boss escapes the line")
 
