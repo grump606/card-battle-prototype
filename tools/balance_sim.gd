@@ -3,7 +3,8 @@ extends SceneTree
 ## policy and prints win rate, turns and remaining HP per encounter size, then
 ## the win rate per enemy type (over the fights it appeared in) for each size.
 ## Run: godot --headless --path . -s res://tools/balance_sim.gd -- --fights 500 --seed 1
-## Uses only the public Combat API and never mutates shared resources.
+## Card choice lives in tools/sim_policy.gd (shared with run_sim.gd). Uses only the
+## public Combat API and never mutates shared resources.
 
 const PLAYER_START_HP := 40 # keep in sync with battle.gd
 const TURN_CAP := 50 # a fight still running after this many turns is a stall
@@ -119,92 +120,9 @@ func _run_fight(combat: Combat) -> int:
 	while combat.phase == Combat.Phase.PLAYER_TURN:
 		if combat.turn > TURN_CAP:
 			return 0
-		while true:
-			var pick := _pick_card(combat)
-			if pick == -1:
-				break
-			if not combat.play_card(pick, _lowest_hp_target(combat)):
-				printerr("balance_sim: policy chose an unplayable card (index %d)" % pick)
-				quit(1)
-				return 0
-			if combat.phase != Combat.Phase.PLAYER_TURN:
-				break
-		combat.end_player_turn()
+		if not SimPolicy.play_turn(combat):
+			quit(1)
+			return 0
 	return outcome[0]
 
 
-## Hand index to play next, or -1 to end the turn. Priority: an Expose card
-## when it can set up another affordable damage card this turn, then 0-cost
-## cards, then block if the enemies' intents out-damage current block, then
-## damage, then anything else affordable.
-func _pick_card(combat: Combat) -> int:
-	var need_block := _incoming_damage(combat) > combat.player.block
-	var best := -1
-	var best_rank := 99
-	for i in combat.piles.hand.size():
-		if not combat.can_play(i):
-			continue
-		var card: CardData = combat.piles.hand[i]
-		var rank := 3
-		if _expose_sets_up_damage(combat, i):
-			rank = -1
-		elif card.cost == 0:
-			rank = 0
-		elif need_block and _has_effect(card, CardEffect.Kind.BLOCK):
-			rank = 1
-		elif _has_effect(card, CardEffect.Kind.DAMAGE):
-			rank = 2
-		if rank < best_rank:
-			best_rank = rank
-			best = i
-	return best
-
-
-## True if hand card `index` exposes a target that is not exposed yet and the
-## rest of the hand holds another affordable damage card (after paying for this
-## one) to benefit. Targets match play_card's: the lowest-HP enemy for single
-## target cards, every living enemy for all-enemies cards.
-func _expose_sets_up_damage(combat: Combat, index: int) -> bool:
-	var card: CardData = combat.piles.hand[index]
-	if card.target_mode == CardData.TargetMode.SELF or not _has_effect(card, CardEffect.Kind.EXPOSE):
-		return false
-	var all_exposed := true
-	if card.target_mode == CardData.TargetMode.ALL_ENEMIES:
-		for enemy in combat.living_enemies():
-			if enemy.status_turns(Combatant.Status.EXPOSED) == 0:
-				all_exposed = false
-	else:
-		var target := _lowest_hp_target(combat)
-		all_exposed = target == -1 or combat.enemies[target].status_turns(Combatant.Status.EXPOSED) > 0
-	if all_exposed:
-		return false
-	for j in combat.piles.hand.size():
-		if j != index and _has_effect(combat.piles.hand[j], CardEffect.Kind.DAMAGE) and combat.piles.hand[j].cost <= combat.energy - card.cost:
-			return true
-	return false
-
-
-func _has_effect(card: CardData, kind: CardEffect.Kind) -> bool:
-	for effect in card.effects:
-		if effect.kind == kind:
-			return true
-	return false
-
-
-func _incoming_damage(combat: Combat) -> int:
-	var total := 0
-	for enemy in combat.living_enemies():
-		var intent := enemy.current_intent()
-		if intent != null and intent.kind == CardEffect.Kind.DAMAGE:
-			total += intent.amount
-	return total
-
-
-## Index into combat.enemies of the living enemy with the least HP (first on ties).
-func _lowest_hp_target(combat: Combat) -> int:
-	var best := -1
-	for i in combat.enemies.size():
-		var enemy := combat.enemies[i]
-		if not enemy.is_dead() and (best == -1 or enemy.hp < combat.enemies[best].hp):
-			best = i
-	return best

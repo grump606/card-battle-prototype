@@ -66,3 +66,7 @@ Still open (minor, caller-side workarounds below):
 ## Status
 
 `tools/run_stub.gd` was the throwaway stand-in for the run layer; the real one is now `run/run_state.gd` (see `run.gd` for how a screen drives it). The stub still runs and is kept as a minimal example of the public API.
+
+## Stop types
+
+`RunState.StopType`: `COMBAT` (`start_combat()` then `complete_combat(victory)`; a win pays gold and offers a reward), `REST` (`rest()`), `STORY` (`current_beat()`, `read_story()`), `VENDOR` (`vendor()` for the stock, `vendor_buy_card/remove_card/buy_heal`, then `leave_vendor()`). Code that walks the line must handle every type: assuming stop 0 is a fight breaks. `run.gd` and `tools/run_sim.gd` are the two reference walkers.

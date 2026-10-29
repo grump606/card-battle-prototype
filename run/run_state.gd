@@ -8,20 +8,23 @@ extends RefCounted
 ## New stop kinds (vendor, cutscene) become new StopType values plus one branch
 ## in the screen; the stop line and the persistent player/deck stay as they are.
 
-enum StopType { COMBAT, REST }
+enum StopType { COMBAT, REST, STORY, VENDOR }
 
-const START_HP := 40
-const REST_HEAL := 14
+const START_HP := 50
+const REST_HEAL := 24
 const REWARD_CHOICES := 3
 
-## One stop on the line. `enemy_count` only matters for COMBAT stops.
+## One stop on the line. `enemy_count` only matters for COMBAT stops and
+## `beat_index` (into StoryContent) only for STORY stops.
 class Stop:
 	var type: StopType
 	var enemy_count: int
+	var beat_index: int
 
-	func _init(stop_type: StopType, count: int = 0) -> void:
+	func _init(stop_type: StopType, count: int = 0, beat: int = 0) -> void:
 		type = stop_type
 		enemy_count = count
+		beat_index = beat
 
 	func describe() -> String:
 		match type:
@@ -29,6 +32,10 @@ class Stop:
 				return "Combat (%d enem%s)" % [enemy_count, "y" if enemy_count == 1 else "ies"]
 			StopType.REST:
 				return "Rest"
+			StopType.STORY:
+				return "Story"
+			StopType.VENDOR:
+				return "Vendor"
 		return "?"
 
 var player: Combatant
@@ -39,7 +46,12 @@ var stop_index: int = 0
 var finished: bool = false
 ## Only meaningful when `finished`: true if the player reached the last stop alive.
 var escaped: bool = false
+## Earned by winning fights (Vendor.gold_for_win), spent at VENDOR stops. The
+## vendor tracks gold during a visit; the purchase methods below copy it back so
+## this is always current.
+var gold: int = 0
 
+var _vendor: Vendor = null
 var _rng := RandomNumberGenerator.new()
 var _reward_choices: Array[CardData] = []
 var _reward_pending: bool = false
@@ -72,13 +84,16 @@ func start_combat() -> Combat:
 	return Combat.create(player, deck, enemies, _rng.randi())
 
 
-## Records how a fight ended. A defeat ends the run; a victory offers a reward
-## that must be taken or skipped before the line moves on.
+## Records how a fight ended. A defeat ends the run; a victory pays gold and
+## offers a reward that must be taken or skipped before the line moves on.
 func complete_combat(victory: bool) -> void:
 	if not victory:
 		finished = true
 		escaped = false
 		return
+	var stop := current_stop()
+	if stop != null and stop.type == StopType.COMBAT:
+		gold += Vendor.gold_for_win(stop.enemy_count)
 	_reward_pending = true
 
 
@@ -118,6 +133,73 @@ func rest() -> int:
 	return restored
 
 
+## The beat to show at a STORY stop, or null if not at one or it failed to load
+## (logged); the stop can still be passed with read_story().
+func current_beat() -> StoryBeat:
+	var stop := current_stop()
+	if stop == null or stop.type != StopType.STORY:
+		return null
+	return StoryContent.beat(stop.beat_index)
+
+
+## Moves past a STORY stop. Returns false if not at one.
+func read_story() -> bool:
+	var stop := current_stop()
+	if stop == null or stop.type != StopType.STORY:
+		return false
+	_advance()
+	return true
+
+
+## The vendor for the current VENDOR stop (created on first call, so asking again
+## does not re-roll the stock), or null if not at a vendor stop.
+func vendor() -> Vendor:
+	var stop := current_stop()
+	if stop == null or stop.type != StopType.VENDOR:
+		return null
+	if _vendor == null:
+		_vendor = Vendor.new(deck, _rng, gold)
+	return _vendor
+
+
+## Vendor purchases: each forwards to the Vendor, then copies its gold back. A
+## failed purchase changes nothing; when not at a vendor stop they fail.
+func vendor_buy_card(offer_index: int) -> Vendor.Result:
+	var v := vendor()
+	if v == null:
+		return Vendor.Result.fail("not at a vendor")
+	var result := v.buy_card(offer_index)
+	gold = v.gold
+	return result
+
+
+func vendor_remove_card(deck_index: int) -> Vendor.Result:
+	var v := vendor()
+	if v == null:
+		return Vendor.Result.fail("not at a vendor")
+	var result := v.remove_card(deck_index)
+	gold = v.gold
+	return result
+
+
+func vendor_buy_heal() -> Vendor.Result:
+	var v := vendor()
+	if v == null:
+		return Vendor.Result.fail("not at a vendor")
+	var result := v.buy_heal(player)
+	gold = v.gold
+	return result
+
+
+## Leaves the vendor and moves on. False if not at a vendor stop.
+func leave_vendor() -> bool:
+	if vendor() == null:
+		return false
+	_vendor = null
+	_advance()
+	return true
+
+
 func _advance() -> void:
 	stop_index += 1
 	if stop_index >= stops.size():
@@ -125,15 +207,19 @@ func _advance() -> void:
 		escaped = true
 
 
-## The placeholder train line: small fights early, rests between, a trio last.
+## The placeholder train line: boarding, small fights early, a vendor before the
+## first trio, rests between, a last-light beat, then a final trio.
 func _default_line() -> Array[Stop]:
 	return [
+		Stop.new(StopType.STORY, 0, 0),
 		Stop.new(StopType.COMBAT, 1),
 		Stop.new(StopType.COMBAT, 2),
 		Stop.new(StopType.REST),
 		Stop.new(StopType.COMBAT, 2),
+		Stop.new(StopType.VENDOR),
 		Stop.new(StopType.COMBAT, 3),
 		Stop.new(StopType.REST),
+		Stop.new(StopType.STORY, 0, 3),
 		Stop.new(StopType.COMBAT, 3),
 	]
 

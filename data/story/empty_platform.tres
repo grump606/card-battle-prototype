@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="StoryBeat" format=3]
+
+[ext_resource type="Script" path="res://run/story_beat.gd" id="1_beat"]
+
+[resource]
+script = ExtResource("1_beat")
+title = "The Silent Station"
+text = "The train sighs to a halt at a platform lit by a single guttering lamp. Rows of shapes stand waiting, perfectly still.
+
+None of them get on. None of them get off. The doors close again, slowly, as if reluctant."
+button_text = "Keep still"
