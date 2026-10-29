@@ -16,5 +16,5 @@ amount = 20
 [resource]
 script = ExtResource("1_enemy")
 display_name = "Hollow Colossus"
-max_hp = 65
+max_hp = 74
 intents = Array[ExtResource("2_effect")]([SubResource("Resource_i1"), SubResource("Resource_i2")])
