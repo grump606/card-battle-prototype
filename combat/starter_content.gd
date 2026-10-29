@@ -16,13 +16,14 @@ const SHOULDER_CHARGE_PATH := "res://data/cards/shoulder_charge.tres"
 const MARK_THE_WEAK_PATH := "res://data/cards/mark_the_weak.tres"
 const WISP_PATH := "res://data/enemies/skittering_wisp.tres"
 const COLOSSUS_PATH := "res://data/enemies/hollow_colossus.tres"
+const WHISPERER_PATH := "res://data/enemies/pale_whisperer.tres"
 const EXTENDED_DECK_SIZE := 14
-## Fixed order: warden, lost shade, wisp, colossus. The colossus is a solo-only
+## Fixed order: warden, lost shade, wisp, colossus, whisperer. The colossus is a solo-only
 ## elite (it was unwinnable next to a second enemy in the balance sim); the
 ## warden can share a pair; small enemies are what packs are made of.
-const ALL_ENEMY_PATHS: Array[String] = [WARDEN_PATH, LOST_SHADE_PATH, WISP_PATH, COLOSSUS_PATH]
+const ALL_ENEMY_PATHS: Array[String] = [WARDEN_PATH, LOST_SHADE_PATH, WISP_PATH, COLOSSUS_PATH, WHISPERER_PATH]
 const PAIR_BIG_ENEMY_PATHS: Array[String] = [WARDEN_PATH]
-const SMALL_ENEMY_PATHS: Array[String] = [LOST_SHADE_PATH, WISP_PATH]
+const SMALL_ENEMY_PATHS: Array[String] = [LOST_SHADE_PATH, WISP_PATH, WHISPERER_PATH]
 ## Chance that a two-enemy encounter is a big plus a small enemy rather than two small ones.
 const BIG_PAIR_CHANCE := 0.35
 

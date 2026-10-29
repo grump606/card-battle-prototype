@@ -87,7 +87,7 @@ func _names(enemies: Array[EnemyData]) -> Array:
 
 
 func _test_varied_encounter() -> void:
-	_check(StarterContent.enemy_pool().size() == 4, "enemy pool has 4 enemies")
+	_check(StarterContent.enemy_pool().size() == 5, "enemy pool has 5 enemies")
 	var seen := {}
 	for seed_value in 60:
 		for requested in [-2, 0, 1, 2, 3, 9]:
@@ -102,7 +102,7 @@ func _test_varied_encounter() -> void:
 			_check(_names(first) == _names(second), "varied_encounter deterministic for seed %d" % seed_value)
 			for enemy in first:
 				seen[enemy.display_name] = true
-	for expected_name in ["Gate Warden", "Lost Shade", "Skittering Wisp", "Hollow Colossus"]:
+	for expected_name in ["Gate Warden", "Lost Shade", "Skittering Wisp", "Hollow Colossus", "Pale Whisperer"]:
 		_check(seen.has(expected_name), "varied_encounter uses enemy: %s" % expected_name)
 	var one_rng := RandomNumberGenerator.new()
 	one_rng.seed = 1
