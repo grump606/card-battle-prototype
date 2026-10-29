@@ -19,19 +19,33 @@ const EXPOSED_TOOLTIP := "Takes " + EXPOSED_MULTIPLIER_TEXT + " damage, rounded 
 @onready var _log_label: RichTextLabel = %LogLabel
 @onready var _new_fight_button: Button = %NewFightButton
 
+## Emitted in embedded mode (see external_combat) when the player presses
+## Continue after the fight ended.
+signal fight_finished(victory: bool)
+
+## Set before adding this scene to the tree to show a fight built by a run layer
+## instead of a standalone random one. The screen then ends with a Continue
+## button that emits fight_finished rather than starting a new fight.
+var external_combat: Combat = null
+
 var _combat: Combat
+var _victory := false
 ## Index into Combat.enemies that cards will target.
 var _target_index: int = 0
 
 
 func _ready() -> void:
 	_end_turn_button.pressed.connect(_on_end_turn_pressed)
-	_new_fight_button.pressed.connect(_start_combat)
+	_new_fight_button.pressed.connect(_on_continue_pressed)
 	# Keys are handled in _unhandled_key_input; focusable buttons would let
 	# Tab/Enter/Space move focus or re-press a button instead.
 	_end_turn_button.focus_mode = Control.FOCUS_NONE
 	_new_fight_button.focus_mode = Control.FOCUS_NONE
-	_start_combat()
+	if external_combat != null:
+		_new_fight_button.text = "Continue"
+		_attach(external_combat)
+	else:
+		_start_combat()
 
 
 func _start_combat() -> void:
@@ -44,6 +58,11 @@ func _start_combat() -> void:
 		_result_label.text = "Could not build this fight (content failed to load). See the Output log."
 		_new_fight_button.show()
 		return
+	_attach(combat)
+
+
+## Shows and starts `combat`, replacing any previous fight on this screen.
+func _attach(combat: Combat) -> void:
 	_combat = combat
 	_combat.state_changed.connect(_refresh)
 	_combat.combat_ended.connect(_on_combat_ended)
@@ -213,7 +232,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if _new_fight_button.visible:
 		if key.keycode == KEY_N:
 			get_viewport().set_input_as_handled()
-			_start_combat()
+			_on_continue_pressed()
 		return
 	# Same gate as the buttons: nothing happens outside the player's turn.
 	if _combat == null or _combat.phase != Combat.Phase.PLAYER_TURN:
@@ -238,7 +257,15 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_cycle_target(-1 if key.shift_pressed else 1)
 
 
+func _on_continue_pressed() -> void:
+	if external_combat != null:
+		fight_finished.emit(_victory)
+	else:
+		_start_combat()
+
+
 func _on_combat_ended(victory: bool) -> void:
+	_victory = victory
 	_result_label.text = "You slip through the gate." if victory else "You are claimed by the afterlife."
 	_log_label.append_text("[b]%s[/b]\n" % ("Victory" if victory else "Defeat"))
 	_new_fight_button.show()

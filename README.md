@@ -5,8 +5,10 @@ A small turn-based card battler (afterlife-escape theme) built with Godot 4.7, G
 ## Layout
 
 - `combat/` - rules only: no nodes, no scenes. `Combat` drives turns and emits signals; `CardPiles`, `Combatant`, `EnemyUnit`, `CardData`, `CardEffect`, `EnemyData` are the building blocks. `starter_content.gd` holds placeholder cards and enemies.
-- `battle.gd` / `battle.tscn` - the UI (main scene). It observes `Combat` signals and calls `play_card` / `end_player_turn`; it contains no rules.
-- `tests/run_tests.gd` - headless rules tests. `tests/smoke_main.gd` - loads and instantiates the main scene.
+- `battle.gd` / `battle.tscn` - the combat UI. It observes `Combat` signals and calls `play_card` / `end_player_turn`; it contains no rules. Run on its own (F6 on `battle.tscn`) it plays a random fight with a New Fight button; embedded by the run screen it shows a fight the run built and ends with Continue.
+- `run/run_state.gd` - the run layer, rules only: a fixed line of stops (combat, rest) with the player's HP and deck carried from stop to stop, a rest heal, and a pick-one-of-three card reward after each win. A defeat ends the run; passing the last stop escapes. New stop kinds (vendor, cutscene) are new `StopType` values.
+- `run.gd` / `run.tscn` - the run screen (main scene, F5): a thin view over `RunState` that embeds `battle.tscn` for combat stops and shows small panels for rewards, rests and the end card.
+- `tests/run_tests.gd` - headless rules tests (also runs `content_tests.gd` and `run_state_tests.gd`). `tests/smoke_main.gd` - loads and instantiates the main scene.
 - `scripts/check.ps1` - full validation.
 
 ## Run
