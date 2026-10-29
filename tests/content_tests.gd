@@ -14,6 +14,7 @@ func run() -> int:
 	_test_varied_encounter()
 	_test_encounter_composition()
 	_test_colossus_never_in_pairs_or_trios()
+	_test_boss_encounter()
 	return _failures
 
 
@@ -149,3 +150,19 @@ func _test_colossus_never_in_pairs_or_trios() -> void:
 		for enemy in StarterContent.varied_encounter(1, rng):
 			solo_seen = solo_seen or enemy.display_name == colossus_name
 	_check(solo_seen, "the colossus does appear as a solo fight")
+
+
+func _test_boss_encounter() -> void:
+	var boss := StarterContent.boss_encounter()
+	_check(boss.size() == 1 and boss[0].display_name == "The Conductor", "boss_encounter is the Conductor alone")
+	_check(boss[0] != StarterContent.boss_encounter()[0], "each boss encounter owns its own copy of the data")
+	var pool_names := []
+	for enemy in StarterContent.enemy_pool():
+		pool_names.append(enemy.display_name)
+	_check(not pool_names.has("The Conductor"), "the boss is not in the random enemy pool")
+	for seed_value in 100:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = seed_value
+		for count in [1, 2, 3]:
+			for enemy in StarterContent.varied_encounter(count, rng):
+				_check(enemy.display_name != "The Conductor", "the boss never appears in a random encounter (seed %d)" % seed_value)

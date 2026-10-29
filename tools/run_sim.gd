@@ -62,7 +62,8 @@ func _initialize() -> void:
 						run.complete_combat(false)
 					else:
 						run.complete_combat(result == 1)
-						if result == 1 and not _take_reward(run):
+						# A boss win has no reward to take.
+						if result == 1 and run.reward_pending() and not _take_reward(run):
 							quit(1)
 							return
 				RunState.StopType.REST:

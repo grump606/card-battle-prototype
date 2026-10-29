@@ -69,4 +69,4 @@ Still open (minor, caller-side workarounds below):
 
 ## Stop types
 
-`RunState.StopType`: `COMBAT` (`start_combat()` then `complete_combat(victory)`; a win pays gold and offers a reward), `REST` (`rest()`), `STORY` (`current_beat()`, `read_story()`), `VENDOR` (`vendor()` for the stock, `vendor_buy_card/remove_card/buy_heal`, then `leave_vendor()`). Code that walks the line must handle every type: assuming stop 0 is a fight breaks. `run.gd` and `tools/run_sim.gd` are the two reference walkers.
+`RunState.StopType`: `COMBAT` (`start_combat()` then `complete_combat(victory)`; a win pays gold and offers a reward, except a boss stop (`Stop.boss`), which fights `StarterContent.boss_encounter()` and offers none), `REST` (`rest()`), `STORY` (`current_beat()`, `read_story()`), `VENDOR` (`vendor()` for the stock, `vendor_buy_card/remove_card/buy_heal`, then `leave_vendor()`). Code that walks the line must handle every type: assuming stop 0 is a fight breaks. `run.gd` and `tools/run_sim.gd` are the two reference walkers.

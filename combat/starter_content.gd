@@ -20,6 +20,8 @@ const SECOND_WIND_PATH := "res://data/cards/second_wind.tres"
 const WISP_PATH := "res://data/enemies/skittering_wisp.tres"
 const COLOSSUS_PATH := "res://data/enemies/hollow_colossus.tres"
 const WHISPERER_PATH := "res://data/enemies/pale_whisperer.tres"
+## The run's boss. Deliberately not in ALL_ENEMY_PATHS: it only appears via boss_encounter().
+const CONDUCTOR_PATH := "res://data/enemies/the_conductor.tres"
 const EXTENDED_DECK_SIZE := 14
 ## Fixed order: warden, lost shade, wisp, colossus, whisperer. The colossus is a solo-only
 ## elite (it was unwinnable next to a second enemy in the balance sim); the
@@ -128,6 +130,16 @@ static func varied_encounter(enemy_count: int, rng: RandomNumberGenerator) -> Ar
 		var enemy := _load_enemy(path)
 		if enemy != null:
 			enemies.append(enemy)
+	return enemies
+
+
+## The boss fight: the Conductor alone. Empty (cause logged) if it fails to load,
+## and Combat needs at least one enemy, so callers must check.
+static func boss_encounter() -> Array[EnemyData]:
+	var enemies: Array[EnemyData] = []
+	var boss := _load_enemy(CONDUCTOR_PATH)
+	if boss != null:
+		enemies.append(boss)
 	return enemies
 
 

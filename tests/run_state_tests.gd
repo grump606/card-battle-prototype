@@ -26,6 +26,7 @@ func run() -> int:
 	_test_start_combat_twice_releases_first()
 	_test_rewards_rolled_eagerly_and_copied()
 	_test_survivors_from_mutation_audit()
+	_test_boss_stop()
 	return _failures
 
 
@@ -57,13 +58,15 @@ func _test_fresh_state() -> void:
 
 func _test_default_line() -> void:
 	var state := RunState.new(1)
-	_check(state.stops.size() == 10, "default line has 10 stops")
+	_check(state.stops.size() == 12, "default line has 12 stops")
 	_check(state.stops[0].type == RunState.StopType.STORY and state.stops[0].describe() == "Story", "the line opens with a story beat")
 	_check(state.stops[1].type == RunState.StopType.COMBAT and state.stops[1].enemy_count == 1, "first fight is a solo fight")
-	_check(state.stops[3].type == RunState.StopType.REST and state.stops[7].type == RunState.StopType.REST, "rests sit at stops 4 and 8")
-	_check(state.stops[5].type == RunState.StopType.VENDOR and state.stops[5].describe() == "Vendor", "a vendor comes before the first trio")
-	_check(state.stops[8].type == RunState.StopType.STORY, "a story beat comes just before the final fight")
-	_check(state.stops[9].type == RunState.StopType.COMBAT and state.stops[9].enemy_count == Combat.MAX_ENEMIES, "final stop is a full pack")
+	_check(state.stops[3].type == RunState.StopType.REST and state.stops[8].type == RunState.StopType.REST, "rests sit at stops 4 and 9")
+	_check(state.stops[6].type == RunState.StopType.VENDOR and state.stops[6].describe() == "Vendor", "a vendor comes before the first trio")
+	_check(state.stops[9].type == RunState.StopType.VENDOR, "a second vendor comes before the finale")
+	_check(state.stops[4].type == RunState.StopType.STORY and state.stops[4].beat_index == 1, "the Conductor is glimpsed mid-run")
+	_check(state.stops[10].type == RunState.StopType.STORY, "a story beat comes just before the boss")
+	_check(state.stops[11].type == RunState.StopType.COMBAT and state.stops[11].boss and state.stops[11].describe() == "Boss", "the final stop is the boss fight")
 
 
 func _test_start_combat_builds_fight_with_persistent_player() -> void:
@@ -154,8 +157,8 @@ func _test_story_flow() -> void:
 	_check(not state.read_story() and state.reward_pending(), "read_story is rejected while a reward is pending")
 	# The final story stop sits before the last fight.
 	var late := RunState.new(8)
-	late.stop_index = 8
-	_check(late.current_beat() != null and late.read_story() and late.stop_index == 9, "the late story stop reads and leads to the final fight")
+	late.stop_index = 10
+	_check(late.current_beat() != null and late.read_story() and late.stop_index == 11, "the late story stop reads and leads to the boss")
 
 
 # The missing beat logs push_error on purpose; that output is expected here.
@@ -221,11 +224,16 @@ func _test_seed_determinism() -> void:
 ## Moves a run to the VENDOR stop (index 5) by winning/skipping and resting on the way.
 func _at_vendor(rng_seed: int) -> RunState:
 	var state := _at_first_fight(rng_seed)
-	while state.current_stop().type != RunState.StopType.VENDOR:
-		if state.current_stop().type == RunState.StopType.COMBAT:
-			_win_and_skip(state)
-		else:
-			state.rest()
+	var guard := 0
+	while state.current_stop().type != RunState.StopType.VENDOR and guard < 50:
+		guard += 1
+		match state.current_stop().type:
+			RunState.StopType.COMBAT:
+				_win_and_skip(state)
+			RunState.StopType.STORY:
+				state.read_story()
+			_:
+				state.rest()
 	return state
 
 
@@ -338,7 +346,7 @@ func _test_vendor_gold_and_stale_state() -> void:
 	_check(bought.ok and state.gold == 100 - bought.spent, "gold changed while a vendor exists is honoured, not overwritten")
 	state.leave_vendor()
 	_check(state.vendor() == null, "the vendor is gone after leaving")
-	_check(vendor != null and state.stop_index == 6, "setup: moved past the vendor stop")
+	_check(vendor != null and state.stop_index == 7, "setup: moved past the vendor stop")
 
 
 func _test_start_combat_twice_releases_first() -> void:
@@ -414,8 +422,45 @@ func _test_survivors_from_mutation_audit() -> void:
 		shape.append([stop.type, stop.enemy_count])
 	var want := [
 		[RunState.StopType.STORY, 0], [RunState.StopType.COMBAT, 1], [RunState.StopType.COMBAT, 2],
-		[RunState.StopType.REST, 0], [RunState.StopType.COMBAT, 2], [RunState.StopType.VENDOR, 0],
-		[RunState.StopType.COMBAT, 3], [RunState.StopType.REST, 0], [RunState.StopType.STORY, 0],
-		[RunState.StopType.COMBAT, 3],
+		[RunState.StopType.REST, 0], [RunState.StopType.STORY, 0], [RunState.StopType.COMBAT, 2],
+		[RunState.StopType.VENDOR, 0], [RunState.StopType.COMBAT, 3], [RunState.StopType.REST, 0],
+		[RunState.StopType.VENDOR, 0], [RunState.StopType.STORY, 0], [RunState.StopType.COMBAT, 1],
 	]
 	_check(shape == want, "the default line has the documented shape: %s" % str(shape))
+
+
+## Walks a run to the boss stop (winning and skipping rewards, resting, reading, leaving vendors).
+func _at_boss(rng_seed: int) -> RunState:
+	var state := RunState.new(rng_seed)
+	var guard := 0
+	while not state.finished and not state.current_stop().boss and guard < 60:
+		guard += 1
+		match state.current_stop().type:
+			RunState.StopType.COMBAT:
+				_win_and_skip(state)
+			RunState.StopType.STORY:
+				state.read_story()
+			RunState.StopType.VENDOR:
+				state.leave_vendor()
+			_:
+				state.rest()
+	return state
+
+
+func _test_boss_stop() -> void:
+	var state := _at_boss(51)
+	_check(not state.finished and state.current_stop().boss, "setup: standing at the boss stop")
+	var fight := state.start_combat()
+	_check(fight != null and fight.enemies.size() == 1 and fight.enemies[0].display_name == "The Conductor", "the boss stop fights the Conductor alone")
+	if fight != null:
+		fight.abandon()
+
+	var gold_before := state.gold
+	state.complete_combat(true)
+	_check(state.gold == gold_before + Vendor.gold_for_win(1), "beating the boss pays gold")
+	_check(not state.reward_pending() and state.reward_choices().is_empty(), "beating the boss offers no card reward")
+	_check(state.finished and state.escaped, "beating the boss escapes the line")
+
+	var beaten := _at_boss(52)
+	beaten.complete_combat(false)
+	_check(beaten.finished and not beaten.escaped, "losing to the boss ends the run without escape")

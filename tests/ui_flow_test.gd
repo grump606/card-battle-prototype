@@ -138,8 +138,8 @@ func _initialize() -> void:
 	_check(guard < 4000 and stuck <= 400, "the run never got stuck at one stop")
 	_check(run_state.finished and run_state.escaped, "the run finished with an escape")
 	_check(run_state.stop_index == run_state.stops.size(), "every stop was passed")
-	_check(fights_ended == 5 and rewards == 5, "five fights ended and five rewards were resolved (%d, %d)" % [fights_ended, rewards])
-	_check(vendor_visits == 1 and rests == 2 and stories == 2, "one vendor, two rests and two story stops were visited (%d, %d, %d)" % [vendor_visits, rests, stories])
+	_check(fights_ended == 5 and rewards == 4, "five fights ended and four rewards were resolved, the boss giving none (%d, %d)" % [fights_ended, rewards])
+	_check(vendor_visits == 2 and rests == 2 and stories == 3, "two vendors, two rests and three story stops were visited (%d, %d, %d)" % [vendor_visits, rests, stories])
 	_check(_find(body, "New Run") != null, "the end card offers New Run")
 	scene._new_run()
 	await process_frame

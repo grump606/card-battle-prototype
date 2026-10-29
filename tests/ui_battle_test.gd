@@ -41,6 +41,9 @@ func _initialize() -> void:
 	check(c.piles.discard_pile.size() == disc + 1, "number key played (discard grew)")
 	check(node._pile_label.text != before, "pile label changed: " + node._pile_label.text)
 	node._select_target(0)
+	# The card played above may itself have exposed the target, so start from a clean slate.
+	c.enemies[0].clear_statuses()
+	c.player.clear_statuses()
 	c.enemies[0].apply_status(Combatant.Status.EXPOSED, 2)
 	c.player.apply_status(Combatant.Status.EXPOSED, 3)
 	check(node._player_label.tooltip_text == "Takes 1.5x damage, rounded down, for 3 more turns.", "player tooltip: " + node._player_label.tooltip_text)

@@ -15,20 +15,26 @@ const REST_HEAL := 24
 const REWARD_CHOICES := 3
 
 ## One stop on the line. `enemy_count` only matters for COMBAT stops and
-## `beat_index` (into StoryContent) only for STORY stops.
+## `beat_index` (into StoryContent) only for STORY stops. A COMBAT stop with
+## `boss` set fights StarterContent.boss_encounter() instead of a random pack,
+## and winning it pays gold but offers no card reward.
 class Stop:
 	var type: StopType
 	var enemy_count: int
 	var beat_index: int
+	var boss: bool
 
-	func _init(stop_type: StopType, count: int = 0, beat: int = 0) -> void:
+	func _init(stop_type: StopType, count: int = 0, beat: int = 0, is_boss: bool = false) -> void:
 		type = stop_type
 		enemy_count = count
 		beat_index = beat
+		boss = is_boss
 
 	func describe() -> String:
 		match type:
 			StopType.COMBAT:
+				if boss:
+					return "Boss"
 				return "Combat (%d enem%s)" % [enemy_count, "y" if enemy_count == 1 else "ies"]
 			StopType.REST:
 				return "Rest"
@@ -86,7 +92,7 @@ func start_combat() -> Combat:
 	if _active_combat != null:
 		_active_combat.abandon()
 		_active_combat = null
-	var enemies := StarterContent.varied_encounter(stop.enemy_count, _rng)
+	var enemies := StarterContent.boss_encounter() if stop.boss else StarterContent.varied_encounter(stop.enemy_count, _rng)
 	_active_combat = Combat.create(player, deck, enemies, _rng.randi())
 	return _active_combat
 
@@ -106,6 +112,10 @@ func complete_combat(victory: bool) -> void:
 		escaped = false
 		return
 	gold += Vendor.gold_for_win(stop.enemy_count)
+	if stop.boss:
+		# The boss ends the line of fights: no card to pick, move straight on.
+		_advance()
+		return
 	_roll_rewards()
 	_reward_pending = true
 
@@ -228,20 +238,23 @@ func _advance() -> void:
 		escaped = true
 
 
-## The placeholder train line: boarding, small fights early, a vendor before the
-## first trio, rests between, a last-light beat, then a final trio.
+## The placeholder train line: boarding, small fights early with the Conductor
+## glimpsed mid-run, a vendor before the first trio, rests between, a second
+## vendor and the last-light beat, then the Conductor as boss.
 func _default_line() -> Array[Stop]:
 	return [
 		Stop.new(StopType.STORY, 0, 0),
 		Stop.new(StopType.COMBAT, 1),
 		Stop.new(StopType.COMBAT, 2),
 		Stop.new(StopType.REST),
+		Stop.new(StopType.STORY, 0, 1),
 		Stop.new(StopType.COMBAT, 2),
 		Stop.new(StopType.VENDOR),
 		Stop.new(StopType.COMBAT, 3),
 		Stop.new(StopType.REST),
+		Stop.new(StopType.VENDOR),
 		Stop.new(StopType.STORY, 0, 3),
-		Stop.new(StopType.COMBAT, 3),
+		Stop.new(StopType.COMBAT, 1, 0, true),
 	]
 
 
