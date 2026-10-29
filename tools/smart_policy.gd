@@ -1,0 +1,255 @@
+class_name SmartPolicy
+extends RefCounted
+## "Smart" sim policy: a stronger player model than the greedy SimPolicy, used by
+## run_sim.gd --policy smart so balance can be judged at more than one skill level.
+## Uses only the public Combat, RunState and Vendor APIs.
+##
+## Combat: before each play every playable (card, target) pair is scored and the
+## best score per energy (value / (cost + 1)) is played; the turn ends when
+## nothing has positive value. Value of a card is the sum of its effects:
+##  - Damage: HP actually removed (after the target's Expose and block), weighted
+##    by 1 + the target's threat / its HP, so the enemy that threatens the most
+##    damage per HP is focused. A killing blow adds a bonus of 4 + 1.5 x the
+##    killed enemy's threat. Overkill is not counted, so a finisher is preferred
+##    to a bigger hit that wastes damage. Sweep sums over every living enemy.
+##  - Block: 2 per point that cancels incoming damage still unblocked, 0.1 per
+##    wasted point ("block exactly").
+##  - Draw: 1.5 per card while energy is left to use it, else 0.2.
+##  - Expose on an enemy: half the damage of the other affordable damage cards
+##    that the Expose multiplier would boost this turn (expose before damage),
+##    plus a little for extra turns; 0 if it is already exposed. An Expose that
+##    has damage to boost also gets a large ordering bonus so it is played first.
+##    Expose on self is penalised.
+## The per-energy ratio makes the policy spend its energy on the best total rather
+## than the single best card, and free cards (ratio = value) are played early.
+##
+## Rewards and vendor: a card is scored for the deck as it stands, by effect, as
+## sum(damage x w_damage, block x w_block, draw x 2.5, expose x 2) divided by
+## (cost + 1). w_damage / w_block lean toward whichever of damage and block points
+## the deck has less of (target 55% damage), clamped to 0.5..1.5. The offered
+## reward is skipped when its score is below the deck's average card score. At
+## the vendor it heals first (same rule as greedy), buys any card scoring above
+## the deck average (best first, while gold allows), then removes the weakest card
+## (once, if gold remains, the deck has more than MIN_DECK cards and the card
+## scores below REMOVE_BELOW x the average).
+
+const DAMAGE_SHARE := 0.55
+const DRAW_VALUE := 2.5
+const EXPOSE_VALUE := 2.0
+const EXPOSE_FIRST := 8.0 # ordering bonus for an Expose that has damage to boost
+const MIN_DECK := 8
+const REMOVE_BELOW := 0.8
+
+
+## Plays cards until nothing is worth playing or the fight ends, then ends the
+## turn. Returns false (after logging) if a chosen play is rejected.
+static func play_turn(combat: Combat) -> bool:
+	while true:
+		var best_hand := -1
+		var best_target := -1
+		var best_score := 0.0
+		for i in combat.piles.hand.size():
+			if not combat.can_play(i):
+				continue
+			var card: CardData = combat.piles.hand[i]
+			for target in _targets(combat, card):
+				var score := _play_value(combat, i, target) / (card.cost + 1)
+				if score > best_score:
+					best_score = score
+					best_hand = i
+					best_target = target
+		if best_hand == -1:
+			break
+		if not combat.play_card(best_hand, best_target):
+			printerr("SmartPolicy: policy chose an unplayable card (index %d)" % best_hand)
+			return false
+		if combat.phase != Combat.Phase.PLAYER_TURN:
+			return true
+	combat.end_player_turn()
+	return true
+
+
+## Target indexes to consider: every living enemy for single-target cards, else -1.
+static func _targets(combat: Combat, card: CardData) -> Array[int]:
+	var targets: Array[int] = []
+	if card.target_mode == CardData.TargetMode.SINGLE_ENEMY:
+		for i in combat.enemies.size():
+			if not combat.enemies[i].is_dead():
+				targets.append(i)
+	else:
+		targets.append(-1)
+	return targets
+
+
+static func _play_value(combat: Combat, hand_index: int, target: int) -> float:
+	var card: CardData = combat.piles.hand[hand_index]
+	var hit: Array[EnemyUnit] = []
+	if card.target_mode == CardData.TargetMode.SINGLE_ENEMY:
+		hit.append(combat.enemies[target])
+	elif card.target_mode == CardData.TargetMode.ALL_ENEMIES:
+		hit = combat.living_enemies()
+	var unblocked := maxi(_incoming_damage(combat) - combat.player.block, 0)
+	var energy_left := combat.energy - card.cost
+	var value := 0.0
+	for effect in card.effects:
+		match effect.kind:
+			CardEffect.Kind.DAMAGE:
+				for enemy in hit:
+					var lost := _hp_lost(enemy, effect.amount)
+					var threat := _threat(combat, enemy)
+					value += lost * (1.0 + float(threat) / maxi(enemy.hp, 1))
+					if lost >= enemy.hp:
+						value += 4.0 + 1.5 * threat
+			CardEffect.Kind.BLOCK:
+				var useful := mini(effect.amount, unblocked)
+				unblocked -= useful
+				value += 2.0 * useful + 0.1 * (effect.amount - useful)
+			CardEffect.Kind.DRAW:
+				value += (1.5 if energy_left > 0 else 0.2) * effect.amount
+			CardEffect.Kind.EXPOSE:
+				if card.target_mode == CardData.TargetMode.SELF:
+					value -= 5.0
+				else:
+					for enemy in hit:
+						if enemy.status_turns(Combatant.Status.EXPOSED) == 0:
+							var boosted := _other_damage(combat, hand_index, energy_left)
+							value += 0.5 * boosted + 0.3 * effect.amount
+							if boosted > 0:
+								# It only pays if played before the damage, so rank it first.
+								value += EXPOSE_FIRST
+	return value
+
+
+## HP `enemy` would lose to a hit of `amount` (after Expose and its own block).
+static func _hp_lost(enemy: EnemyUnit, amount: int) -> int:
+	var hit := enemy.damage_after_status(amount)
+	return mini(maxi(hit - enemy.block, 0), enemy.hp)
+
+
+## Damage the enemy's next intent would deal to the player, 0 for other intents.
+static func _threat(combat: Combat, enemy: EnemyUnit) -> int:
+	var intent := enemy.current_intent()
+	if intent != null and intent.kind == CardEffect.Kind.DAMAGE:
+		return combat.player.damage_after_status(intent.amount)
+	return 0
+
+
+static func _incoming_damage(combat: Combat) -> int:
+	var total := 0
+	for enemy in combat.living_enemies():
+		total += _threat(combat, enemy)
+	return total
+
+
+## Sum of damage amounts of the other cards in hand that `energy_left` can pay for
+## (each counted once; a rough measure of what an Expose would boost).
+static func _other_damage(combat: Combat, hand_index: int, energy_left: int) -> int:
+	var total := 0
+	for j in combat.piles.hand.size():
+		var other: CardData = combat.piles.hand[j]
+		if j == hand_index or other.cost > energy_left:
+			continue
+		for effect in other.effects:
+			if effect.kind == CardEffect.Kind.DAMAGE:
+				total += effect.amount
+	return total
+
+
+## Reward pick: the best-scoring offered card, or null (skip) if even that is
+## below the deck's average card score.
+static func pick_reward(run: RunState) -> CardData:
+	var weights := _weights(run.deck)
+	var best: CardData = null
+	var best_score := -INF
+	for card in run.reward_choices():
+		var score := card_score(card, weights)
+		if score > best_score:
+			best_score = score
+			best = card
+	if best == null or best_score < _average_score(run.deck, weights):
+		return null
+	return best
+
+
+## Vendor visit per the header. False on a RunState failure.
+static func shop(run: RunState) -> bool:
+	var vendor := run.vendor()
+	if vendor == null:
+		printerr("SmartPolicy: no vendor at a vendor stop")
+		return false
+	if run.player.max_hp - run.player.hp >= Vendor.HEAL_AMOUNT / 2:
+		run.vendor_buy_heal()
+	while true:
+		var weights := _weights(run.deck)
+		var average := _average_score(run.deck, weights)
+		var best_index := -1
+		var best_score := average
+		var offers := vendor.offers()
+		for i in offers.size():
+			if offers[i]["sold"] or offers[i]["price"] > run.gold:
+				continue
+			var score := card_score(offers[i]["card"], weights)
+			if score > best_score:
+				best_score = score
+				best_index = i
+		if best_index == -1:
+			break
+		if not run.vendor_buy_card(best_index).ok:
+			printerr("SmartPolicy: vendor refused an affordable card")
+			return false
+	if run.gold >= Vendor.REMOVE_CARD_PRICE and run.deck.size() > MIN_DECK:
+		var weights := _weights(run.deck)
+		var weakest := -1
+		var weakest_score := INF
+		for i in run.deck.size():
+			var score := card_score(run.deck[i], weights)
+			if score < weakest_score:
+				weakest_score = score
+				weakest = i
+		if weakest_score < REMOVE_BELOW * _average_score(run.deck, weights):
+			if not run.vendor_remove_card(weakest).ok:
+				printerr("SmartPolicy: vendor refused a removal")
+				return false
+	return run.leave_vendor()
+
+
+## Damage and block weights {damage, block} leaning toward what the deck lacks.
+static func _weights(deck: Array[CardData]) -> Dictionary:
+	var damage := 0
+	var block := 0
+	for card in deck:
+		for effect in card.effects:
+			if effect.kind == CardEffect.Kind.DAMAGE:
+				damage += effect.amount
+			elif effect.kind == CardEffect.Kind.BLOCK:
+				block += effect.amount
+	var share := DAMAGE_SHARE if damage + block == 0 else float(damage) / (damage + block)
+	return {
+		"damage": clampf(1.0 + (DAMAGE_SHARE - share) * 2.0, 0.5, 1.5),
+		"block": clampf(1.0 + (share - DAMAGE_SHARE) * 2.0, 0.5, 1.5),
+	}
+
+
+static func card_score(card: CardData, weights: Dictionary) -> float:
+	var total := 0.0
+	for effect in card.effects:
+		match effect.kind:
+			CardEffect.Kind.DAMAGE:
+				var spread := 1.3 if card.target_mode == CardData.TargetMode.ALL_ENEMIES else 1.0
+				total += effect.amount * weights["damage"] * spread
+			CardEffect.Kind.BLOCK:
+				total += effect.amount * weights["block"]
+			CardEffect.Kind.DRAW:
+				total += effect.amount * DRAW_VALUE
+			CardEffect.Kind.EXPOSE:
+				total += effect.amount * EXPOSE_VALUE
+	return total / (card.cost + 1)
+
+
+static func _average_score(deck: Array[CardData], weights: Dictionary) -> float:
+	if deck.is_empty():
+		return 0.0
+	var total := 0.0
+	for card in deck:
+		total += card_score(card, weights)
+	return total / deck.size()

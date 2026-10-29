@@ -52,6 +52,7 @@ func _initialize() -> void:
 	_failures += load("res://tests/content_tests.gd").new().run()
 	_failures += load("res://tests/run_state_tests.gd").new().run()
 	_failures += load("res://tests/vendor_tests.gd").new().run()
+	_failures += load("res://tests/smart_policy_tests.gd").new().run()
 	print("FAILURES: %d" % _failures)
 	quit(1 if _failures > 0 else 0)
 

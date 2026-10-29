@@ -7,11 +7,17 @@ extends SceneTree
 ## a damage effect 1/(1+damage cards in deck) and a block effect 1/(1+block cards
 ## in deck), minus 0.001 per energy cost to prefer cheaper cards; first offered
 ## wins ties. Uses only the public RunState and Combat APIs.
+## --policy smart swaps in tools/smart_policy.gd (lookahead combat scoring, deck-
+## composition reward/vendor scoring with skips and card removal); see its header.
+## The default, --policy greedy, is the behaviour described above.
 
 const TURN_CAP := 50 # a fight still running after this many turns is a stall
 const DEFAULT_RUNS := 300
 const DEFAULT_SEED := 1
-const USAGE := "Usage: godot --headless --path . -s res://tools/run_sim.gd -- [--runs N] [--seed S] [--help]\n  --runs N    number of whole runs, integer >= 1 (default 300)\n  --seed S    base random seed, integer (default 1)\n  --help      print this usage and exit 0"
+const POLICIES: Array[String] = ["greedy", "smart"]
+const USAGE := "Usage: godot --headless --path . -s res://tools/run_sim.gd -- [--runs N] [--seed S] [--policy P] [--help]\n  --runs N    number of whole runs, integer >= 1 (default 300)\n  --seed S    base random seed, integer (default 1)\n  --policy P  greedy (default) or smart (stronger lookahead player)\n  --help      print this usage and exit 0"
+
+var _smart := false
 
 
 func _initialize() -> void:
@@ -26,6 +32,7 @@ func _initialize() -> void:
 		return
 	var runs: int = opts["runs"]
 	var base_seed: int = opts["seed"]
+	_smart = opts["policy"] == "smart"
 
 	var escapes := 0
 	var stalls := 0
@@ -94,7 +101,10 @@ func _initialize() -> void:
 			var desc: String = stop_desc[run.stop_index]
 			deaths_by_desc[desc] = deaths_by_desc.get(desc, 0) + 1
 
-	print("Run sim: %d runs, seed %d, player HP %d, turn cap %d" % [runs, base_seed, RunState.START_HP, TURN_CAP])
+	if _smart:
+		print("Run sim: %d runs, seed %d, policy smart, player HP %d, turn cap %d" % [runs, base_seed, RunState.START_HP, TURN_CAP])
+	else:
+		print("Run sim: %d runs, seed %d, player HP %d, turn cap %d" % [runs, base_seed, RunState.START_HP, TURN_CAP])
 	print("Escape rate: %d/%d (%.1f%%)" % [escapes, runs, 100.0 * escapes / runs])
 	print("Stalls (fight abandoned at turn cap, run counted lost): %d" % stalls)
 	if escapes > 0:
@@ -120,15 +130,22 @@ func _initialize() -> void:
 	quit(0)
 
 
-## Returns {runs, seed} or an empty dictionary (after printing usage) on bad input.
+## Returns {runs, seed, policy} or an empty dictionary (after printing usage) on bad input.
 func _parse_args(args: PackedStringArray) -> Dictionary:
-	var opts := {"runs": DEFAULT_RUNS, "seed": DEFAULT_SEED}
+	var opts := {"runs": DEFAULT_RUNS, "seed": DEFAULT_SEED, "policy": "greedy"}
 	var i := 0
 	while i < args.size():
 		var name := args[i]
-		if name != "--runs" and name != "--seed":
+		if name != "--runs" and name != "--seed" and name != "--policy":
 			printerr("run_sim: unknown argument '%s'\n%s" % [name, USAGE])
 			return {}
+		if name == "--policy":
+			if i + 1 >= args.size() or not args[i + 1] in POLICIES:
+				printerr("run_sim: --policy must be one of %s\n%s" % [", ".join(POLICIES), USAGE])
+				return {}
+			opts["policy"] = args[i + 1]
+			i += 2
+			continue
 		if i + 1 >= args.size() or not args[i + 1].is_valid_int():
 			printerr("run_sim: %s needs an integer value\n%s" % [name, USAGE])
 			return {}
@@ -156,13 +173,20 @@ func _play_combat(run: RunState) -> int:
 		if combat.turn > TURN_CAP:
 			combat.abandon()
 			return 0
-		if not SimPolicy.play_turn(combat):
+		var played := SmartPolicy.play_turn(combat) if _smart else SimPolicy.play_turn(combat)
+		if not played:
 			return -2
 	return outcome[0]
 
 
 ## Takes the best offered card per the header heuristic. False on a RunState failure.
 func _take_reward(run: RunState) -> bool:
+	if _smart:
+		# A null pick skips the reward.
+		if not run.resolve_reward(SmartPolicy.pick_reward(run)):
+			printerr("run_sim: resolve_reward rejected the smart policy's pick")
+			return false
+		return true
 	var choices := run.reward_choices()
 	var best: CardData = null
 	var best_score := -INF
@@ -202,6 +226,8 @@ func _card_score(run: RunState, card: CardData) -> float:
 ## affordable, then keep buying the best-scoring card it can afford, then leave.
 ## Never removes cards. False on a RunState failure.
 func _shop(run: RunState) -> bool:
+	if _smart:
+		return SmartPolicy.shop(run)
 	var vendor := run.vendor()
 	if vendor == null:
 		printerr("run_sim: no vendor at a vendor stop")
