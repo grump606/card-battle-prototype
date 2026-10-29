@@ -1,8 +1,9 @@
 class_name CardEffect
 extends Resource
 ## One atomic outcome of a card play or an enemy intent.
+## EXPOSE (`amount` = turns) is only honoured on cards; enemy intents ignore it.
 
-enum Kind { DAMAGE, BLOCK, DRAW }
+enum Kind { DAMAGE, BLOCK, DRAW, EXPOSE }
 
 @export var kind: Kind = Kind.DAMAGE
 @export var amount: int = 0
@@ -23,4 +24,6 @@ func describe() -> String:
 			return "Block %d" % amount
 		Kind.DRAW:
 			return "Draw %d" % amount
+		Kind.EXPOSE:
+			return "Expose %d" % amount
 	return ""

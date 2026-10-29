@@ -9,6 +9,13 @@ const SLIP_PAST_PATH := "res://data/cards/slip_past.tres"
 const GLIMPSE_EXIT_PATH := "res://data/cards/glimpse_exit.tres"
 const WARDEN_PATH := "res://data/enemies/gate_warden.tres"
 const LOST_SHADE_PATH := "res://data/enemies/lost_shade.tres"
+const HEAVY_BLOW_PATH := "res://data/cards/heavy_blow.tres"
+const BRACE_PATH := "res://data/cards/brace.tres"
+const STEADY_BREATH_PATH := "res://data/cards/steady_breath.tres"
+const SHOULDER_CHARGE_PATH := "res://data/cards/shoulder_charge.tres"
+const WISP_PATH := "res://data/enemies/skittering_wisp.tres"
+const COLOSSUS_PATH := "res://data/enemies/hollow_colossus.tres"
+const EXTENDED_DECK_SIZE := 14
 
 
 ## Card definitions are immutable data, so deck slots of the same card share one instance.
@@ -25,6 +32,25 @@ static func deck() -> Array[CardData]:
 	for i in 4:
 		cards.append(slip_past)
 	cards.append(glimpse_exit)
+	return cards
+
+
+## Balance-testing deck of EXTENDED_DECK_SIZE (14) cards: 4 Shove, 3 Slip Past,
+## 1 Glimpse the Exit, 2 Heavy Blow, 2 Brace, 1 Steady Breath, 1 Shoulder Charge.
+## Returns an empty deck (and logs the cause) if any card resource fails to load.
+static func extended_deck() -> Array[CardData]:
+	var cards: Array[CardData] = []
+	var plan: Array = [
+		[SHOVE_PATH, 4], [SLIP_PAST_PATH, 3], [GLIMPSE_EXIT_PATH, 1],
+		[HEAVY_BLOW_PATH, 2], [BRACE_PATH, 2], [STEADY_BREATH_PATH, 1], [SHOULDER_CHARGE_PATH, 1],
+	]
+	for entry in plan:
+		var card := _load_card(entry[0] as String)
+		if card == null:
+			var empty: Array[CardData] = []
+			return empty
+		for i in (entry[1] as int):
+			cards.append(card)
 	return cards
 
 
@@ -46,6 +72,31 @@ static func early_encounter(enemy_count: int) -> Array[EnemyData]:
 		var enemy := warden() if count == 1 else lost_shade()
 		if enemy != null:
 			enemies.append(enemy)
+	return enemies
+
+
+## All enemy types in a fixed order: warden, lost shade, wisp, colossus.
+## Enemies that fail to load are left out (the cause is logged).
+static func enemy_pool() -> Array[EnemyData]:
+	var pool: Array[EnemyData] = []
+	for path in [WARDEN_PATH, LOST_SHADE_PATH, WISP_PATH, COLOSSUS_PATH]:
+		var enemy := _load_enemy(path)
+		if enemy != null:
+			pool.append(enemy)
+	return pool
+
+
+## An encounter of `enemy_count` (clamped to 1..MAX_ENEMIES) enemies drawn
+## independently from enemy_pool() using `rng`, so a seeded rng reproduces it.
+## Empty if the pool could not be loaded.
+static func varied_encounter(enemy_count: int, rng: RandomNumberGenerator) -> Array[EnemyData]:
+	var count := clampi(enemy_count, 1, Combat.MAX_ENEMIES)
+	var pool := enemy_pool()
+	var enemies: Array[EnemyData] = []
+	if pool.is_empty():
+		return enemies
+	for i in count:
+		enemies.append(pool[rng.randi_range(0, pool.size() - 1)].duplicate(true) as EnemyData)
 	return enemies
 
 

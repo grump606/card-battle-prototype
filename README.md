@@ -54,3 +54,11 @@ Effect kinds: `DAMAGE`, `BLOCK`, `DRAW`. A card may have several effects; cost 0
 Add a static function to `combat/starter_content.gd` returning `EnemyData.make(name, max_hp, intents)`, where `intents` is an `Array[CardEffect]` the enemy cycles through one per turn (empty means it does nothing). Then include it in an encounter such as `early_encounter()`. An encounter must have 1 to `Combat.MAX_ENEMIES` (3) enemies.
 
 Add a test in `tests/run_tests.gd` (a `_test_*` function plus a call in `_initialize`) for any new rule.
+
+## Card target modes and statuses
+
+A card's `target_mode` (in its `.tres`) is `0` single enemy (default, the selected enemy), `1` all enemies, or `2` self. Block- and draw-only cards should use self so they never need or name a target. An `EXPOSE` effect (`kind = 3`, `amount` = turns) makes the target take 1.5x damage, rounded down, applied before block.
+
+## Balance simulation
+
+`godot --headless --path . -s res://tools/balance_sim.gd -- --fights 500 --seed 1` plays N seeded fights (default 500, seed 1) for each early encounter size (1 to 3 enemies) with a deterministic greedy policy (0-cost cards first, block when enemy intents out-damage current block, otherwise damage the lowest-HP enemy). It prints win rate, average turns, average player HP left on wins and stalls (fights over 50 turns) per size. Output is identical for identical arguments; invalid arguments print usage and exit with code 2. The sim's player HP constant is copied from `battle.gd`, so keep them in sync. It currently uses `deck()` and `early_encounter()`; `extended_deck()` and `varied_encounter()` exist for wider balance testing but are not wired in yet.

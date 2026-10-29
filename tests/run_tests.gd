@@ -25,7 +25,15 @@ func _initialize() -> void:
 	_test_multi_effect_card()
 	_test_end_turn_after_combat_ended_is_noop()
 	_test_constructor_limits()
+	_test_target_modes()
+	_test_card_played_payload()
+	_test_expose_multiplier_and_rounding()
+	_test_expose_duration_enemy()
+	_test_expose_duration_player()
+	_test_expose_on_blocked_hit()
+	_test_no_status_leak_between_fights()
 	_test_content_loaders_reject_bad_resources()
+	_failures += load("res://tests/content_tests.gd").new().run()
 	print("FAILURES: %d" % _failures)
 	quit(1 if _failures > 0 else 0)
 
@@ -264,6 +272,154 @@ func _test_constructor_limits() -> void:
 	half.gain_block(-4)
 	_check(half.block == 0, "negative block ignored")
 	_check(half.take_damage(-5) == 0 and half.hp == 7, "negative damage ignored")
+
+
+func _mode_card(mode: CardData.TargetMode, effects: Array[CardEffect], cost: int = 0) -> CardData:
+	return CardData.make(&"m", "M", cost, effects, mode)
+
+
+func _expose(turns: int) -> CardEffect:
+	return CardEffect.make(CardEffect.Kind.EXPOSE, turns)
+
+
+func _test_target_modes() -> void:
+	var all_card := _mode_card(CardData.TargetMode.ALL_ENEMIES, [CardEffect.make(CardEffect.Kind.DAMAGE, 4), CardEffect.make(CardEffect.Kind.BLOCK, 2)])
+	var combat := Combat.new(Combatant.new("p", 20), _deck(10, all_card), _enemies(3, 30, []))
+	combat.start()
+	_check(combat.play_card(0, 99), "ALL_ENEMIES ignores an invalid target index")
+	_check(combat.enemies[0].hp == 26 and combat.enemies[1].hp == 26 and combat.enemies[2].hp == 26, "ALL_ENEMIES hits every enemy")
+	_check(combat.player.block == 2, "BLOCK stays on the player for ALL_ENEMIES")
+	combat.enemies[1].take_damage(100)
+	_check(combat.play_card(0, 1), "ALL_ENEMIES ignores a defeated target index")
+	_check(combat.enemies[0].hp == 22 and combat.enemies[2].hp == 22, "ALL_ENEMIES skips defeated enemies")
+
+	var self_card := _mode_card(CardData.TargetMode.SELF, [CardEffect.make(CardEffect.Kind.BLOCK, 6), CardEffect.make(CardEffect.Kind.DAMAGE, 9)])
+	var c2 := Combat.new(Combatant.new("p", 20), _deck(10, self_card), _enemies(2, 30, []))
+	c2.start()
+	_check(c2.play_card(0, 77) and c2.play_card(0, -2), "SELF ignores the target index")
+	_check(c2.player.block == 12 and c2.enemies[0].hp == 30 and c2.enemies[1].hp == 30, "SELF blocks the player and hits no enemy")
+
+	var single := _mode_card(CardData.TargetMode.SINGLE_ENEMY, _dmg(4))
+	var c3 := Combat.new(Combatant.new("p", 20), _deck(10, single), _enemies(2, 30, []))
+	c3.start()
+	_check(not c3.play_card(0, 9) and c3.piles.hand.size() == Combat.HAND_SIZE, "SINGLE_ENEMY still rejects an invalid target")
+	_check(_card(1, _dmg(1)).target_mode == CardData.TargetMode.SINGLE_ENEMY, "target mode defaults to SINGLE_ENEMY")
+
+
+func _test_card_played_payload() -> void:
+	var all_card := _mode_card(CardData.TargetMode.ALL_ENEMIES, _dmg(1))
+	var self_card := _mode_card(CardData.TargetMode.SELF, [CardEffect.make(CardEffect.Kind.BLOCK, 1)])
+	var one_card := _mode_card(CardData.TargetMode.SINGLE_ENEMY, _dmg(1))
+	var deck: Array[CardData] = [all_card, self_card, one_card]
+	var combat := Combat.new(Combatant.new("p", 20), deck, _enemies(3, 30, []))
+	var seen: Array = []
+	combat.card_played.connect(func(card: CardData, targets: Array[EnemyUnit]): seen.append([card, targets.duplicate()]))
+	combat.start()
+	# Hand order is shuffled; find each card by identity.
+	for wanted in [all_card, self_card, one_card]:
+		combat.play_card(combat.piles.hand.find(wanted), 1)
+	_check(seen.size() == 3, "card_played emitted once per play")
+	for entry in seen:
+		var targets: Array = entry[1]
+		if entry[0] == all_card:
+			_check(targets == combat.enemies, "ALL_ENEMIES payload lists every living enemy")
+		elif entry[0] == self_card:
+			_check(targets.is_empty(), "SELF payload is empty")
+		else:
+			_check(targets == [combat.enemies[1]], "SINGLE_ENEMY payload is the chosen enemy")
+
+
+func _test_expose_multiplier_and_rounding() -> void:
+	var c := Combatant.new("c", 100)
+	c.apply_status(Combatant.Status.EXPOSED, 2)
+	_check(c.take_damage(10) == 15, "exposed: 10 becomes 15")
+	_check(c.take_damage(5) == 7, "exposed: 7.5 rounds down to 7")
+	_check(c.take_damage(1) == 1, "exposed: 1 stays at least 1")
+	_check(c.take_damage(0) == 0, "exposed: zero damage stays zero")
+	_check(c.status_turns(Combatant.Status.EXPOSED) == 2, "damage does not tick the status")
+	c.apply_status(Combatant.Status.EXPOSED, 0)
+	c.apply_status(Combatant.Status.EXPOSED, -3)
+	_check(c.status_turns(Combatant.Status.EXPOSED) == 2, "non-positive durations ignored")
+	var fired := [0]
+	c.changed.connect(func(): fired[0] += 1)
+	c.apply_status(Combatant.Status.EXPOSED, 1)
+	_check(fired[0] == 1 and c.status_turns(Combatant.Status.EXPOSED) == 3, "applying a status fires changed and stacks duration")
+
+
+func _test_expose_duration_enemy() -> void:
+	var intents: Array[CardEffect] = [CardEffect.make(CardEffect.Kind.DAMAGE, 1)]
+	var card := _mode_card(CardData.TargetMode.SINGLE_ENEMY, [_expose(2)])
+	var strike := _card(0, _dmg(10))
+	var deck: Array[CardData] = [card, strike, strike, strike, strike, strike]
+	var combat := Combat.new(Combatant.new("p", 99), deck, _enemies(2, 100, intents))
+	combat.start()
+	combat.play_card(combat.piles.hand.find(card), 1)
+	_check(combat.enemies[1].status_turns(Combatant.Status.EXPOSED) == 2 and combat.enemies[0].status_turns(Combatant.Status.EXPOSED) == 0, "EXPOSE applies to the chosen enemy only")
+	combat.play_card(combat.piles.hand.find(strike), 1)
+	_check(combat.enemies[1].hp == 85, "exposed enemy takes 15 from a 10 hit")
+	combat.end_player_turn()
+	_check(combat.enemies[1].status_turns(Combatant.Status.EXPOSED) == 1, "enemy status ticks after it acts")
+	combat.end_player_turn()
+	_check(combat.enemies[1].status_turns(Combatant.Status.EXPOSED) == 0, "enemy status expires after its duration")
+	var before := combat.enemies[1].hp
+	combat.play_card(combat.piles.hand.find(strike), 1)
+	_check(before - combat.enemies[1].hp == 10, "damage is normal after expiry")
+
+	var all_expose := _mode_card(CardData.TargetMode.ALL_ENEMIES, [_expose(1)])
+	var c2 := Combat.new(Combatant.new("p", 99), _deck(10, all_expose), _enemies(2, 100, []))
+	c2.start()
+	c2.play_card(0)
+	_check(c2.enemies[0].status_turns(Combatant.Status.EXPOSED) == 1 and c2.enemies[1].status_turns(Combatant.Status.EXPOSED) == 1, "EXPOSE hits all enemies with ALL_ENEMIES")
+	c2.end_player_turn()
+	_check(c2.enemies[0].status_turns(Combatant.Status.EXPOSED) == 0, "1-turn expose expires on the enemy's own turn")
+
+	var self_expose := _mode_card(CardData.TargetMode.SELF, [_expose(1)])
+	var c3 := Combat.new(Combatant.new("p", 99), _deck(10, self_expose), _enemies(1, 100, []))
+	c3.start()
+	c3.play_card(0)
+	_check(c3.player.status_turns(Combatant.Status.EXPOSED) == 1 and c3.enemies[0].status_turns(Combatant.Status.EXPOSED) == 0, "SELF EXPOSE exposes the player")
+
+
+func _test_expose_duration_player() -> void:
+	var intents: Array[CardEffect] = [CardEffect.make(CardEffect.Kind.DAMAGE, 10), _expose(5)]
+	var player := Combatant.new("p", 100)
+	var combat := Combat.new(player, _deck(10, _card(1, _dmg(1))), _enemies(1, 100, intents))
+	combat.start()
+	player.apply_status(Combatant.Status.EXPOSED, 2)
+	combat.end_player_turn()
+	_check(player.hp == 85, "exposed player takes 15 from a 10 hit")
+	_check(player.status_turns(Combatant.Status.EXPOSED) == 1, "player status ticks at end of its turn cycle")
+	combat.end_player_turn()
+	_check(player.status_turns(Combatant.Status.EXPOSED) == 0, "player status expires; enemy EXPOSE intent is ignored")
+	_check(player.hp == 85, "second intent (an EXPOSE) does no damage")
+	combat.end_player_turn()
+	_check(player.hp == 75, "no longer exposed: normal damage")
+
+
+func _test_expose_on_blocked_hit() -> void:
+	var c := Combatant.new("c", 50)
+	c.apply_status(Combatant.Status.EXPOSED, 1)
+	c.gain_block(10)
+	_check(c.take_damage(10) == 5 and c.block == 0, "10 exposed to 15; block 10 absorbs, 5 gets through")
+	var d := Combatant.new("d", 50)
+	d.apply_status(Combatant.Status.EXPOSED, 1)
+	d.gain_block(15)
+	_check(d.take_damage(10) == 0 and d.block == 0, "multiplier applies before block: 15 fully absorbed by 15 block")
+
+
+func _test_no_status_leak_between_fights() -> void:
+	var player := Combatant.new("p", 50)
+	player.apply_status(Combatant.Status.EXPOSED, 3)
+	var intents: Array[CardEffect] = [CardEffect.make(CardEffect.Kind.DAMAGE, 10)]
+	var next := Combat.new(player, _deck(5, _card(1, _dmg(1))), _enemies(1, 10, intents))
+	_check(player.status_turns(Combatant.Status.EXPOSED) == 0, "a new fight clears the player's statuses")
+	next.start()
+	next.end_player_turn()
+	_check(player.hp == 40, "no exposed damage in the new fight")
+	var a := EnemyUnit.new(EnemyData.make("a", 10, intents))
+	var b := EnemyUnit.new(EnemyData.make("a", 10, intents))
+	a.apply_status(Combatant.Status.EXPOSED, 2)
+	_check(b.status_turns(Combatant.Status.EXPOSED) == 0, "statuses are per combatant")
 
 
 # The loaders log an error for each bad path; that output is expected here.

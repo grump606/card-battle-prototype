@@ -11,7 +11,8 @@ const ENERGY_PER_TURN := 3
 const MAX_ENEMIES := 3
 
 signal state_changed
-signal card_played(card: CardData)
+## `targets` are the enemies the card hit (empty for SELF cards).
+signal card_played(card: CardData, targets: Array[EnemyUnit])
 signal enemy_acted(enemy: EnemyUnit, intent: CardEffect)
 signal combat_ended(victory: bool)
 
@@ -30,6 +31,8 @@ func _init(player_combatant: Combatant, deck: Array[CardData], enemy_datas: Arra
 	var rng := RandomNumberGenerator.new()
 	rng.seed = rng_seed
 	player = player_combatant
+	# The player outlives fights; statuses must not.
+	player.clear_statuses()
 	piles = CardPiles.new(deck, rng)
 	player.changed.connect(state_changed.emit)
 	for enemy_data in enemy_datas:
@@ -60,20 +63,39 @@ func can_play(hand_index: int) -> bool:
 	)
 
 
-## Plays a card on the enemy at `target_index` (an index into `enemies`).
-## -1 picks the first living enemy. Returns false, changing nothing, if the
-## play is not allowed or the target is invalid or already defeated.
+## Plays a card. For SINGLE_ENEMY cards `target_index` indexes `enemies`:
+## -1 picks the first living enemy, and an invalid or defeated target rejects
+## the play. ALL_ENEMIES and SELF cards ignore `target_index`. Returns false,
+## changing nothing, if the play is not allowed.
 func play_card(hand_index: int, target_index: int = -1) -> bool:
 	if not can_play(hand_index):
 		return false
-	var target := _resolve_target(target_index)
-	if target == null:
-		return false
+	var mode := piles.hand[hand_index].target_mode
+	var targets: Array[EnemyUnit] = []
+	match mode:
+		CardData.TargetMode.SINGLE_ENEMY:
+			var target := _resolve_target(target_index)
+			if target == null:
+				return false
+			targets.append(target)
+		CardData.TargetMode.ALL_ENEMIES:
+			targets = living_enemies()
 	var card := piles.play(hand_index)
 	energy -= card.cost
 	for effect in card.effects:
-		_apply(effect, player, target)
-	card_played.emit(card)
+		match effect.kind:
+			CardEffect.Kind.DAMAGE:
+				for target in targets:
+					_apply(effect, player, target)
+			CardEffect.Kind.EXPOSE:
+				# SELF cards expose the player; others expose their targets.
+				if mode == CardData.TargetMode.SELF:
+					_apply(effect, player, player)
+				for target in targets:
+					_apply(effect, player, target)
+			_:
+				_apply(effect, player, player)
+	card_played.emit(card, targets)
 	if not _check_end():
 		state_changed.emit()
 	return true
@@ -91,8 +113,12 @@ func end_player_turn() -> void:
 			_apply(intent, enemy, player)
 			enemy_acted.emit(enemy, intent)
 		enemy.advance_intent()
+		enemy.tick_statuses()
 		if _check_end():
 			return
+	# After the enemies act, so a 1-turn status on the player still covers the
+	# enemy phase that follows the turn it was applied in.
+	player.tick_statuses()
 	_begin_player_turn()
 
 
@@ -114,7 +140,8 @@ func _begin_player_turn() -> void:
 	state_changed.emit()
 
 
-## `target` receives damage; `source` receives block and draws.
+## `target` receives damage and statuses; `source` receives block and draws.
+## EXPOSE is card-only: an enemy intent carrying it does nothing.
 func _apply(effect: CardEffect, source: Combatant, target: Combatant) -> void:
 	match effect.kind:
 		CardEffect.Kind.DAMAGE:
@@ -125,6 +152,9 @@ func _apply(effect: CardEffect, source: Combatant, target: Combatant) -> void:
 			# Only the player has a hand.
 			if source == player:
 				piles.draw(effect.amount)
+		CardEffect.Kind.EXPOSE:
+			if source == player:
+				target.apply_status(Combatant.Status.EXPOSED, effect.amount)
 
 
 func _check_end() -> bool:

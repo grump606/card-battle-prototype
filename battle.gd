@@ -41,7 +41,7 @@ func _start_combat() -> void:
 
 func _refresh() -> void:
 	var player := _combat.player
-	_player_label.text = "%s  HP %d/%d  Block %d" % [player.display_name, player.hp, player.max_hp, player.block]
+	_player_label.text = "%s  HP %d/%d  Block %d%s" % [player.display_name, player.hp, player.max_hp, player.block, _status_text(player)]
 	_energy_label.text = "Energy %d/%d" % [_combat.energy, Combat.ENERGY_PER_TURN]
 	_keep_target_alive()
 	_rebuild_enemies()
@@ -72,8 +72,8 @@ func _rebuild_enemies() -> void:
 		else:
 			var intent := enemy.current_intent()
 			var marker := "> " if i == _target_index else ""
-			button.text = "%s%s\nHP %d/%d  Block %d\nIntent: %s" % [
-				marker, enemy.display_name, enemy.hp, enemy.max_hp, enemy.block,
+			button.text = "%s%s\nHP %d/%d  Block %d%s\nIntent: %s" % [
+				marker, enemy.display_name, enemy.hp, enemy.max_hp, enemy.block, _status_text(enemy),
 				intent.describe() if intent != null else "-",
 			]
 			button.pressed.connect(_select_target.bind(i))
@@ -88,10 +88,25 @@ func _rebuild_hand() -> void:
 	for i in _combat.piles.hand.size():
 		var card := _combat.piles.hand[i]
 		var button := Button.new()
-		button.text = "%s (%d)\n%s" % [card.display_name, card.cost, card.describe()]
+		button.text = "%s (%d)\n%s%s" % [card.display_name, card.cost, card.describe(), _target_tag(card)]
 		button.disabled = not _combat.can_play(i)
 		button.pressed.connect(_combat.play_card.bind(i, _target_index))
 		_hand_box.add_child(button)
+
+
+func _status_text(combatant: Combatant) -> String:
+	var exposed := combatant.status_turns(Combatant.Status.EXPOSED)
+	return "  Exposed %d" % exposed if exposed > 0 else ""
+
+
+## Single-target cards use the selected enemy, so only the other modes get a tag.
+func _target_tag(card: CardData) -> String:
+	match card.target_mode:
+		CardData.TargetMode.ALL_ENEMIES:
+			return "\n[all enemies]"
+		CardData.TargetMode.SELF:
+			return "\n[self]"
+	return ""
 
 
 func _select_target(index: int) -> void:
@@ -109,8 +124,14 @@ func _on_combat_ended(victory: bool) -> void:
 	_new_fight_button.show()
 
 
-func _on_card_played(card: CardData) -> void:
-	_log_label.append_text("Played %s\n" % card.display_name)
+func _on_card_played(card: CardData, targets: Array[EnemyUnit]) -> void:
+	if targets.is_empty():
+		_log_label.append_text("Played %s\n" % card.display_name)
+		return
+	var names: PackedStringArray = []
+	for target in targets:
+		names.append(target.display_name)
+	_log_label.append_text("Played %s on %s\n" % [card.display_name, ", ".join(names)])
 
 
 func _on_enemy_acted(enemy: EnemyUnit, intent: CardEffect) -> void:
