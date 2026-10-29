@@ -13,6 +13,7 @@ const HEAVY_BLOW_PATH := "res://data/cards/heavy_blow.tres"
 const BRACE_PATH := "res://data/cards/brace.tres"
 const STEADY_BREATH_PATH := "res://data/cards/steady_breath.tres"
 const SHOULDER_CHARGE_PATH := "res://data/cards/shoulder_charge.tres"
+const MARK_THE_WEAK_PATH := "res://data/cards/mark_the_weak.tres"
 const WISP_PATH := "res://data/enemies/skittering_wisp.tres"
 const COLOSSUS_PATH := "res://data/enemies/hollow_colossus.tres"
 const EXTENDED_DECK_SIZE := 14
@@ -43,13 +44,15 @@ static func deck() -> Array[CardData]:
 
 
 ## Balance-testing deck of EXTENDED_DECK_SIZE (14) cards: 4 Shove, 3 Slip Past,
-## 1 Glimpse the Exit, 2 Heavy Blow, 2 Brace, 1 Steady Breath, 1 Shoulder Charge.
+## 1 Glimpse the Exit, 2 Heavy Blow, 1 Brace, 1 Steady Breath, 1 Shoulder Charge,
+## 1 Mark the Weak.
 ## Returns an empty deck (and logs the cause) if any card resource fails to load.
 static func extended_deck() -> Array[CardData]:
 	var cards: Array[CardData] = []
 	var plan: Array = [
 		[SHOVE_PATH, 4], [SLIP_PAST_PATH, 3], [GLIMPSE_EXIT_PATH, 1],
-		[HEAVY_BLOW_PATH, 2], [BRACE_PATH, 2], [STEADY_BREATH_PATH, 1], [SHOULDER_CHARGE_PATH, 1],
+		[HEAVY_BLOW_PATH, 2], [BRACE_PATH, 1], [STEADY_BREATH_PATH, 1], [SHOULDER_CHARGE_PATH, 1],
+		[MARK_THE_WEAK_PATH, 1],
 	]
 	for entry in plan:
 		var card := _load_card(entry[0] as String)
