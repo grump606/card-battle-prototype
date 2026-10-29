@@ -9,6 +9,7 @@ func run() -> int:
 	_failures = 0
 	_test_new_cards_load()
 	_test_new_enemies_load()
+	_test_small_enemies_in_trios()
 	_test_extended_deck()
 	_test_existing_content_unchanged()
 	_test_varied_encounter()
@@ -30,7 +31,19 @@ func _test_new_cards_load() -> void:
 		StarterContent.BRACE_PATH: [0, [CardEffect.Kind.BLOCK]],
 		StarterContent.STEADY_BREATH_PATH: [1, [CardEffect.Kind.DRAW, CardEffect.Kind.BLOCK]],
 		StarterContent.SHOULDER_CHARGE_PATH: [2, [CardEffect.Kind.DAMAGE, CardEffect.Kind.BLOCK]],
+		StarterContent.HAMSTRING_PATH: [2, [CardEffect.Kind.DAMAGE, CardEffect.Kind.EXPOSE]],
+		StarterContent.IRON_RESOLVE_PATH: [2, [CardEffect.Kind.BLOCK]],
+		StarterContent.FLURRY_PATH: [0, [CardEffect.Kind.DAMAGE]],
+		StarterContent.GUARDED_STRIKE_PATH: [1, [CardEffect.Kind.DAMAGE, CardEffect.Kind.BLOCK]],
 	}
+	var ids := {}
+	for path in [StarterContent.HAMSTRING_PATH, StarterContent.IRON_RESOLVE_PATH, StarterContent.FLURRY_PATH, StarterContent.GUARDED_STRIKE_PATH]:
+		var added := load(path) as CardData
+		if added != null:
+			_check(not ids.has(added.id), "new card id unique: %s" % path)
+			ids[added.id] = true
+			var price := Vendor.card_price(added)
+			_check(price == Vendor.PRICE_CHEAP or price == Vendor.PRICE_MID or price == Vendor.PRICE_PRICEY, "vendor prices new card: %s" % path)
 	for path in expected:
 		var card := load(path) as CardData
 		_check(card != null, "card loads as CardData: %s" % path)
@@ -45,7 +58,7 @@ func _test_new_cards_load() -> void:
 
 
 func _test_new_enemies_load() -> void:
-	for path in [StarterContent.WISP_PATH, StarterContent.COLOSSUS_PATH]:
+	for path in [StarterContent.WISP_PATH, StarterContent.COLOSSUS_PATH, StarterContent.CINDER_HOUND_PATH, StarterContent.MOURNING_CROW_PATH]:
 		var enemy := load(path) as EnemyData
 		_check(enemy != null, "enemy loads as EnemyData: %s" % path)
 		if enemy != null:
@@ -62,14 +75,26 @@ func _test_new_enemies_load() -> void:
 		_check(wisp.intents.size() != colossus.intents.size(), "distinct intent cycle lengths")
 
 
+func _test_small_enemies_in_trios() -> void:
+	var small: Array[String] = [StarterContent.CINDER_HOUND_PATH, StarterContent.MOURNING_CROW_PATH]
+	for path in small:
+		_check(StarterContent.SMALL_ENEMY_PATHS.has(path) and StarterContent.ALL_ENEMY_PATHS.has(path), "new small enemy is registered: %s" % path)
+		_check(StarterContent._trio_paths().has(path), "new small enemy may appear in trios: %s" % path)
+	var hound := StarterContent._load_enemy(StarterContent.CINDER_HOUND_PATH)
+	var crow := StarterContent._load_enemy(StarterContent.MOURNING_CROW_PATH)
+	if hound != null and crow != null:
+		_check(hound.max_hp != crow.max_hp and hound.intents.size() != crow.intents.size(), "new enemies are distinct")
+		_check(hound.max_hp >= 16 and hound.max_hp <= 24 and crow.max_hp >= 16 and crow.max_hp <= 24, "new enemies are small")
+
+
 func _test_extended_deck() -> void:
 	var deck := StarterContent.extended_deck()
-	_check(deck.size() == StarterContent.EXTENDED_DECK_SIZE and deck.size() == 14, "extended deck has 14 cards")
+	_check(deck.size() == StarterContent.EXTENDED_DECK_SIZE and deck.size() == 16, "extended deck has 16 cards")
 	var counts := {}
 	for card in deck:
 		counts[card.id] = counts.get(card.id, 0) + 1
 		_check(card.cost >= 0 and card.cost <= 3, "extended card playable: %s" % card.id)
-	var want := {&"shove": 3, &"slip_past": 2, &"glimpse_exit": 1, &"heavy_blow": 1, &"brace": 1, &"steady_breath": 1, &"shoulder_charge": 1, &"mark_the_weak": 1, &"sweep": 1, &"cutting_word": 1, &"second_wind": 1}
+	var want := {&"shove": 2, &"slip_past": 1, &"glimpse_exit": 1, &"heavy_blow": 1, &"brace": 1, &"steady_breath": 1, &"shoulder_charge": 1, &"mark_the_weak": 1, &"sweep": 1, &"cutting_word": 1, &"second_wind": 1, &"hamstring": 1, &"iron_resolve": 1, &"flurry": 1, &"guarded_strike": 1}
 	_check(counts == want, "extended deck composition: %s" % str(counts))
 
 
@@ -90,7 +115,7 @@ func _names(enemies: Array[EnemyData]) -> Array:
 
 
 func _test_varied_encounter() -> void:
-	_check(StarterContent.enemy_pool().size() == 5, "enemy pool has 5 enemies")
+	_check(StarterContent.enemy_pool().size() == 7, "enemy pool has 7 enemies")
 	var seen := {}
 	for seed_value in 60:
 		for requested in [-2, 0, 1, 2, 3, 9]:
@@ -105,7 +130,7 @@ func _test_varied_encounter() -> void:
 			_check(_names(first) == _names(second), "varied_encounter deterministic for seed %d" % seed_value)
 			for enemy in first:
 				seen[enemy.display_name] = true
-	for expected_name in ["Gate Warden", "Lost Shade", "Skittering Wisp", "Hollow Colossus", "Pale Whisperer"]:
+	for expected_name in ["Gate Warden", "Lost Shade", "Skittering Wisp", "Hollow Colossus", "Pale Whisperer", "Cinder Hound", "Mourning Crow"]:
 		_check(seen.has(expected_name), "varied_encounter uses enemy: %s" % expected_name)
 	var one_rng := RandomNumberGenerator.new()
 	one_rng.seed = 1

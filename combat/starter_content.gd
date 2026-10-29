@@ -17,19 +17,25 @@ const MARK_THE_WEAK_PATH := "res://data/cards/mark_the_weak.tres"
 const SWEEP_PATH := "res://data/cards/sweep.tres"
 const CUTTING_WORD_PATH := "res://data/cards/cutting_word.tres"
 const SECOND_WIND_PATH := "res://data/cards/second_wind.tres"
+const HAMSTRING_PATH := "res://data/cards/hamstring.tres"
+const IRON_RESOLVE_PATH := "res://data/cards/iron_resolve.tres"
+const FLURRY_PATH := "res://data/cards/flurry.tres"
+const GUARDED_STRIKE_PATH := "res://data/cards/guarded_strike.tres"
+const CINDER_HOUND_PATH := "res://data/enemies/cinder_hound.tres"
+const MOURNING_CROW_PATH := "res://data/enemies/mourning_crow.tres"
 const WISP_PATH := "res://data/enemies/skittering_wisp.tres"
 const COLOSSUS_PATH := "res://data/enemies/hollow_colossus.tres"
 const WHISPERER_PATH := "res://data/enemies/pale_whisperer.tres"
 ## The run's boss. Deliberately not in ALL_ENEMY_PATHS: it only appears via boss_encounter().
 const CONDUCTOR_PATH := "res://data/enemies/the_conductor.tres"
-const EXTENDED_DECK_SIZE := 14
+const EXTENDED_DECK_SIZE := 16
 ## The regular enemy types in a fixed order (the boss is separate, see CONDUCTOR_PATH): warden,
-## lost shade, wisp, colossus, whisperer. The colossus is a solo-only
+## lost shade, wisp, colossus, whisperer, cinder hound, mourning crow. The colossus is a solo-only
 ## elite (it was unwinnable next to a second enemy in the balance sim); the
 ## warden can share a pair; small enemies are what packs are made of.
-const ALL_ENEMY_PATHS: Array[String] = [WARDEN_PATH, LOST_SHADE_PATH, WISP_PATH, COLOSSUS_PATH, WHISPERER_PATH]
+const ALL_ENEMY_PATHS: Array[String] = [WARDEN_PATH, LOST_SHADE_PATH, WISP_PATH, COLOSSUS_PATH, WHISPERER_PATH, CINDER_HOUND_PATH, MOURNING_CROW_PATH]
 const PAIR_BIG_ENEMY_PATHS: Array[String] = [WARDEN_PATH]
-const SMALL_ENEMY_PATHS: Array[String] = [LOST_SHADE_PATH, WISP_PATH, WHISPERER_PATH]
+const SMALL_ENEMY_PATHS: Array[String] = [LOST_SHADE_PATH, WISP_PATH, WHISPERER_PATH, CINDER_HOUND_PATH, MOURNING_CROW_PATH]
 ## Chance that a two-enemy encounter is a big plus a small enemy rather than two small ones.
 const BIG_PAIR_CHANCE := 0.15
 ## Trios leave out the Lost Shade (the sturdiest small enemy): three of them out-damaged the
@@ -54,16 +60,18 @@ static func deck() -> Array[CardData]:
 	return cards
 
 
-## Balance-testing deck of EXTENDED_DECK_SIZE (14) cards: 3 Shove, 2 Slip Past,
+## Balance-testing deck of EXTENDED_DECK_SIZE (16) cards: 2 Shove, 1 Slip Past,
 ## 1 Glimpse the Exit, 1 Heavy Blow, 1 Brace, 1 Steady Breath, 1 Shoulder Charge,
-## 1 Mark the Weak, 1 Sweep, 1 Cutting Word, 1 Second Wind.
+## 1 Mark the Weak, 1 Sweep, 1 Cutting Word, 1 Second Wind, 1 Hamstring, 1 Iron Resolve,
+## 1 Flurry, 1 Guarded Strike. Reward and vendor pools are the distinct cards of this deck.
 ## Returns an empty deck (and logs the cause) if any card resource fails to load.
 static func extended_deck() -> Array[CardData]:
 	var cards: Array[CardData] = []
 	var plan: Array = [
-		[SHOVE_PATH, 3], [SLIP_PAST_PATH, 2], [GLIMPSE_EXIT_PATH, 1],
+		[SHOVE_PATH, 2], [SLIP_PAST_PATH, 1], [GLIMPSE_EXIT_PATH, 1],
 		[HEAVY_BLOW_PATH, 1], [BRACE_PATH, 1], [STEADY_BREATH_PATH, 1], [SHOULDER_CHARGE_PATH, 1],
 		[MARK_THE_WEAK_PATH, 1], [SWEEP_PATH, 1], [CUTTING_WORD_PATH, 1], [SECOND_WIND_PATH, 1],
+		[HAMSTRING_PATH, 1], [IRON_RESOLVE_PATH, 1], [FLURRY_PATH, 1], [GUARDED_STRIKE_PATH, 1],
 	]
 	for entry in plan:
 		var card := _load_card(entry[0] as String)
@@ -96,7 +104,7 @@ static func early_encounter(enemy_count: int) -> Array[EnemyData]:
 	return enemies
 
 
-## All enemy types in a fixed order: warden, lost shade, wisp, colossus, whisperer.
+## All enemy types in a fixed order: warden, lost shade, wisp, colossus, whisperer, cinder hound, mourning crow.
 ## Enemies that fail to load are left out (the cause is logged).
 static func enemy_pool() -> Array[EnemyData]:
 	var pool: Array[EnemyData] = []
