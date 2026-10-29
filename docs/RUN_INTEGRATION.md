@@ -44,7 +44,7 @@ Drive it with `can_play(i)`, `play_card(i, target_index := -1)` and `end_player_
 ## A run layer must NOT assume
 
 - That a `Combat` can be restarted or reused: `start()` asserts `NOT_STARTED`. Make a new `Combat` per fight.
-- That fights terminate: nothing caps turns (a defensive deck can stall). The caller needs its own turn cap (the stub uses 50 and counts it as a loss).
+- That fights terminate: nothing caps the number of turns (a defensive deck can stall), so the caller needs its own turn cap. A single turn is capped at `Combat.MAX_PLAYS_PER_TURN` (50) plays, after which only ending the turn is possible, so zero-cost draw loops cannot lock a turn.
 - That HP is healed for you: call `player.heal(amount)` (clamped to max HP, returns HP restored) for rest sites and vendors.
 - That `combat_ended` can be read late: connect before `start()` (it is a signal, there is no `victory` property; afterwards use `player.is_dead()`).
 - That `Combat.new` validates the enemy count in release builds: it only asserts. Use `Combat.create(...)`, which returns null (after logging) for fewer than 1 or more than `MAX_ENEMIES` enemies.

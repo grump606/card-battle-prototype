@@ -61,7 +61,11 @@ func _test_prices() -> void:
 	_check(Vendor.card_price(cheap) == Vendor.PRICE_CHEAP, "block 2 cost 0 is cheap")
 	_check(Vendor.card_price(mid) == Vendor.PRICE_MID, "damage 6 cost 1 is mid")
 	_check(Vendor.card_price(big) == Vendor.PRICE_PRICEY, "damage 14 cost 2 is pricey")
-	_check(Vendor.card_value(draw) == 6 and Vendor.card_price(draw) == Vendor.PRICE_MID, "draw counts 3 per card")
+	_check(Vendor.card_value(draw) == 2 * Vendor.DRAW_VALUE and Vendor.card_price(draw) == Vendor.PRICE_MID, "a drawn card adds DRAW_VALUE to a card's value")
+	# The free cycling cards must not sit in the cheapest tier next to plain block.
+	var second_wind := load(StarterContent.SECOND_WIND_PATH) as CardData
+	var brace := load(StarterContent.BRACE_PATH) as CardData
+	_check(Vendor.card_price(second_wind) > Vendor.card_price(brace), "Second Wind (free block + draw) costs more than Brace (free block)")
 	_check(Vendor.PRICE_CHEAP < Vendor.PRICE_MID and Vendor.PRICE_MID < Vendor.PRICE_PRICEY, "tiers ascend")
 
 

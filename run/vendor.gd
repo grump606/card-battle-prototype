@@ -29,6 +29,8 @@ const PRICE_PRICEY := 24
 ## Card value below MID_FROM is cheap; at or above PRICEY_FROM is pricey; else mid.
 const MID_FROM := 6
 const PRICEY_FROM := 12
+## How much one drawn card adds to a card's value.
+const DRAW_VALUE := 4
 
 
 ## Gold awarded for winning a fight against `enemy_count` enemies.
@@ -41,7 +43,8 @@ static func gold_for_win(enemy_count: int) -> int:
 
 
 ## Raw strength of a card: damage and block count 1 per point, expose 2 per turn,
-## draw 3 per card, plus 2 per energy of cost.
+## draw DRAW_VALUE per card (free cycling is the strongest effect, so it prices
+## above plain block), plus 2 per energy of cost.
 static func card_value(card: CardData) -> int:
 	var value := card.cost * 2
 	for effect in card.effects:
@@ -51,7 +54,7 @@ static func card_value(card: CardData) -> int:
 			CardEffect.Kind.EXPOSE:
 				value += effect.amount * 2
 			CardEffect.Kind.DRAW:
-				value += effect.amount * 3
+				value += effect.amount * DRAW_VALUE
 	return value
 
 

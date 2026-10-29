@@ -44,6 +44,7 @@ func _initialize() -> void:
 	_test_start_cannot_resurrect_a_fight()
 	_test_statuses_cleared_when_fight_ends()
 	_test_policy_survives_zero_cost_draw_loop()
+	_test_play_cap_ends_a_self_recycling_turn()
 	_test_card_costing_exactly_the_energy_is_playable()
 	_test_turn_start_resets_energy_and_hand()
 	_test_all_enemies_payload_skips_the_dead()
@@ -599,7 +600,7 @@ func _test_statuses_cleared_when_fight_ends() -> void:
 	_check(quitter.status_turns(Combatant.Status.EXPOSED) == 0, "player statuses are cleared when a fight is abandoned")
 
 
-# A lone zero-cost draw card recycles itself forever; the policy must still end the turn.
+# A lone zero-cost draw card recycles itself forever; the rules cap must let the policy end the turn.
 func _test_policy_survives_zero_cost_draw_loop() -> void:
 	var glimpse := load(StarterContent.GLIMPSE_EXIT_PATH) as CardData
 	var deck: Array[CardData] = [glimpse]
@@ -662,3 +663,24 @@ func _test_shuffle_reaches_every_position() -> void:
 		for position in piles.draw_pile.size():
 			seen["%d:%s" % [position, piles.draw_pile[position].id]] = true
 	_check(seen.size() == 9, "a shuffled 3-card pile puts every card at every position (%d of 9 seen)" % seen.size())
+
+
+func _test_play_cap_ends_a_self_recycling_turn() -> void:
+	var glimpse := load(StarterContent.GLIMPSE_EXIT_PATH) as CardData
+	var deck: Array[CardData] = [glimpse]
+	var combat := Combat.new(Combatant.new("p", 20), deck, _enemies(1, 30, []))
+	combat.start()
+	var plays := 0
+	while combat.can_play(0) and plays < Combat.MAX_PLAYS_PER_TURN * 2:
+		combat.play_card(0)
+		plays += 1
+	_check(plays == Combat.MAX_PLAYS_PER_TURN and combat.plays_this_turn == Combat.MAX_PLAYS_PER_TURN, "a self-recycling zero-cost card stops at the per-turn play cap (%d plays)" % plays)
+	_check(not combat.can_play(0) and not combat.play_card(0), "no card is playable once the cap is hit")
+	combat.end_player_turn()
+	_check(combat.plays_this_turn == 0 and combat.can_play(0), "the cap resets with the next turn")
+	# An ordinary turn is nowhere near the cap.
+	var normal := Combat.new(Combatant.new("p", 20), _deck(10, _card(1, _dmg(1))), _enemies(1, 99, []))
+	normal.start()
+	while normal.can_play(0):
+		normal.play_card(0)
+	_check(normal.plays_this_turn == Combat.ENERGY_PER_TURN, "an ordinary turn is limited by energy long before the cap")

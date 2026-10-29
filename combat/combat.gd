@@ -9,6 +9,11 @@ enum Phase { NOT_STARTED, PLAYER_TURN, ENEMY_TURN, ENDED }
 const HAND_SIZE := 5
 const ENERGY_PER_TURN := 3
 const MAX_ENEMIES := 3
+## Safety cap on cards played in one turn. Zero-cost draw cards can recycle
+## themselves in a thin deck, so without it a turn could (in principle) never
+## end; ordinary play stays far below it. After the cap the player can only end
+## the turn.
+const MAX_PLAYS_PER_TURN := 50
 
 signal state_changed
 ## `targets` are the enemies the card hit (empty for SELF cards).
@@ -24,6 +29,8 @@ var piles: CardPiles
 var energy: int = 0
 var turn: int = 0
 var phase: Phase = Phase.NOT_STARTED
+## Cards played so far this turn (see MAX_PLAYS_PER_TURN).
+var plays_this_turn: int = 0
 
 # EXPOSE turns that enemy intents applied to the player this enemy phase. They
 # are held back until the player's statuses have ticked, so they start counting
@@ -101,6 +108,7 @@ func can_play(hand_index: int) -> bool:
 		and hand_index >= 0
 		and hand_index < piles.hand.size()
 		and piles.hand[hand_index].cost <= energy
+		and plays_this_turn < MAX_PLAYS_PER_TURN
 	)
 
 
@@ -123,6 +131,7 @@ func play_card(hand_index: int, target_index: int = -1) -> bool:
 			targets = living_enemies()
 	var card := piles.play(hand_index)
 	energy -= card.cost
+	plays_this_turn += 1
 	for effect in card.effects:
 		match effect.kind:
 			CardEffect.Kind.DAMAGE:
@@ -182,6 +191,7 @@ func _begin_player_turn() -> void:
 	turn += 1
 	phase = Phase.PLAYER_TURN
 	energy = ENERGY_PER_TURN
+	plays_this_turn = 0
 	player.clear_block()
 	piles.draw(HAND_SIZE)
 	state_changed.emit()

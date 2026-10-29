@@ -4,19 +4,12 @@ extends RefCounted
 ## Uses only the public Combat API.
 
 
-## A turn that is still going after this many plays is cut off. Zero-cost draw
-## cards can recycle themselves forever in a thin deck, and Combat has no cap of
-## its own, so an unattended player must bring one.
-const MAX_PLAYS_PER_TURN := 50
-
-
-## Plays cards until the policy passes, the play cap is hit, or the fight ends,
-## then ends the turn. Returns false (after logging) if the policy picked an
-## unplayable card.
+## Plays cards until the policy passes or the fight ends, then ends the turn.
+## Combat.MAX_PLAYS_PER_TURN stops a self-recycling zero-cost deck (no card is
+## playable once it is hit), so this always terminates. Returns false (after
+## logging) if the policy picked an unplayable card.
 static func play_turn(combat: Combat) -> bool:
-	var plays := 0
-	while plays < MAX_PLAYS_PER_TURN:
-		plays += 1
+	while true:
 		var pick := _pick_card(combat)
 		if pick == -1:
 			break
