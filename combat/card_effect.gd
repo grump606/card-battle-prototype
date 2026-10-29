@@ -1,7 +1,9 @@
 class_name CardEffect
 extends Resource
 ## One atomic outcome of a card play or an enemy intent.
-## EXPOSE (`amount` = turns) is only honoured on cards; enemy intents ignore it.
+## EXPOSE (`amount` = turns): on a card it exposes its targets (the player for
+## SELF cards); on an enemy intent it exposes the player for the next `amount`
+## enemy phases.
 
 enum Kind { DAMAGE, BLOCK, DRAW, EXPOSE }
 

@@ -17,12 +17,13 @@ const MARK_THE_WEAK_PATH := "res://data/cards/mark_the_weak.tres"
 const WISP_PATH := "res://data/enemies/skittering_wisp.tres"
 const COLOSSUS_PATH := "res://data/enemies/hollow_colossus.tres"
 const EXTENDED_DECK_SIZE := 14
-## Fixed order: warden, lost shade, wisp, colossus. Big enemies are the tough
-## single fights; small ones are what packs are made of.
+## Fixed order: warden, lost shade, wisp, colossus. The colossus is a solo-only
+## elite (it was unwinnable next to a second enemy in the balance sim); the
+## warden can share a pair; small enemies are what packs are made of.
 const ALL_ENEMY_PATHS: Array[String] = [WARDEN_PATH, LOST_SHADE_PATH, WISP_PATH, COLOSSUS_PATH]
-const BIG_ENEMY_PATHS: Array[String] = [WARDEN_PATH, COLOSSUS_PATH]
+const PAIR_BIG_ENEMY_PATHS: Array[String] = [WARDEN_PATH]
 const SMALL_ENEMY_PATHS: Array[String] = [LOST_SHADE_PATH, WISP_PATH]
-## Chance that a two-enemy encounter is one big plus one small enemy rather than two small ones.
+## Chance that a two-enemy encounter is a big plus a small enemy rather than two small ones.
 const BIG_PAIR_CHANCE := 0.35
 
 
@@ -98,8 +99,8 @@ static func enemy_pool() -> Array[EnemyData]:
 
 ## An encounter of `enemy_count` (clamped to 1..MAX_ENEMIES) enemies, chosen
 ## with `rng` so a seeded rng reproduces it. Composition keeps danger roughly
-## level as the count grows: a lone enemy can be any type, a pair is either one
-## big and one small enemy or two small ones, and a trio is all small enemies.
+## level as the count grows: a lone enemy can be any type, a pair is either the
+## warden plus a small enemy or two small ones, and a trio is all small enemies.
 ## Enemies whose resource fails to load are left out (the cause is logged), so
 ## the result can be smaller than requested or empty.
 static func varied_encounter(enemy_count: int, rng: RandomNumberGenerator) -> Array[EnemyData]:
@@ -110,7 +111,7 @@ static func varied_encounter(enemy_count: int, rng: RandomNumberGenerator) -> Ar
 			paths.append(_pick_path(ALL_ENEMY_PATHS, rng))
 		2:
 			if rng.randf() < BIG_PAIR_CHANCE:
-				paths.append(_pick_path(BIG_ENEMY_PATHS, rng))
+				paths.append(_pick_path(PAIR_BIG_ENEMY_PATHS, rng))
 				paths.append(_pick_path(SMALL_ENEMY_PATHS, rng))
 			else:
 				paths.append(_pick_path(SMALL_ENEMY_PATHS, rng))

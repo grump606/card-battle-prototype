@@ -39,6 +39,15 @@ func clear_block() -> void:
 	changed.emit()
 
 
+## Restores up to `amount` HP, never above max HP. Negative amounts are ignored.
+## Returns the HP actually restored.
+func heal(amount: int) -> int:
+	var restored := mini(maxi(amount, 0), max_hp - hp)
+	hp += restored
+	changed.emit()
+	return restored
+
+
 ## Remaining turns of `status`, 0 if absent.
 func status_turns(status: Status) -> int:
 	return _statuses.get(status, 0)

@@ -31,8 +31,13 @@ func _initialize() -> void:
 	_test_expose_duration_enemy()
 	_test_expose_duration_player()
 	_test_expose_on_blocked_hit()
+	_test_enemy_intent_expose()
 	_test_no_status_leak_between_fights()
 	_test_content_loaders_reject_bad_resources()
+	_test_heal()
+	_test_player_link_removed_when_fight_ends()
+	_test_block_cleared_when_fight_ends()
+	_test_create_rejects_bad_enemy_counts()
 	_failures += load("res://tests/content_tests.gd").new().run()
 	print("FAILURES: %d" % _failures)
 	quit(1 if _failures > 0 else 0)
@@ -390,10 +395,64 @@ func _test_expose_duration_player() -> void:
 	_check(player.hp == 85, "exposed player takes 15 from a 10 hit")
 	_check(player.status_turns(Combatant.Status.EXPOSED) == 1, "player status ticks at end of its turn cycle")
 	combat.end_player_turn()
-	_check(player.status_turns(Combatant.Status.EXPOSED) == 0, "player status expires; enemy EXPOSE intent is ignored")
 	_check(player.hp == 85, "second intent (an EXPOSE) does no damage")
+	_check(player.status_turns(Combatant.Status.EXPOSED) == 5, "the old status expired; enemy EXPOSE 5 is not ticked in the phase that applied it")
+
+
+func _test_enemy_intent_expose() -> void:
+	# Two enemies each expose for 2: stacks on the player only.
+	var intents: Array[CardEffect] = [_expose(2), CardEffect.make(CardEffect.Kind.DAMAGE, 10)]
+	var player := Combatant.new("p", 100)
+	var combat := Combat.new(player, _deck(10, _card(1, _dmg(1))), _enemies(2, 100, intents))
+	combat.start()
 	combat.end_player_turn()
-	_check(player.hp == 75, "no longer exposed: normal damage")
+	_check(player.status_turns(Combatant.Status.EXPOSED) == 4, "two enemies stack 2+2 turns on the player")
+	_check(combat.enemies[0].status_turns(Combatant.Status.EXPOSED) == 0 and combat.enemies[1].status_turns(Combatant.Status.EXPOSED) == 0, "enemy EXPOSE intent never exposes enemies")
+	_check(player.hp == 100, "no damage in the applying phase")
+
+	# amount 2: exposed for exactly the next 2 enemy phases.
+	var one: Array[CardEffect] = [_expose(2), CardEffect.make(CardEffect.Kind.DAMAGE, 10), CardEffect.make(CardEffect.Kind.DAMAGE, 10), CardEffect.make(CardEffect.Kind.DAMAGE, 10)]
+	var p2 := Combatant.new("p", 100)
+	var c2 := Combat.new(p2, _deck(10, _card(1, _dmg(1))), _enemies(1, 100, one))
+	c2.start()
+	c2.end_player_turn()
+	_check(p2.status_turns(Combatant.Status.EXPOSED) == 2 and p2.hp == 100, "intent EXPOSE 2 leaves 2 turns for the next phases")
+	c2.end_player_turn()
+	_check(p2.hp == 85 and p2.status_turns(Combatant.Status.EXPOSED) == 1, "first exposed enemy phase: 10 becomes 15")
+	c2.end_player_turn()
+	_check(p2.hp == 70 and p2.status_turns(Combatant.Status.EXPOSED) == 0, "second exposed enemy phase: 10 becomes 15")
+	c2.end_player_turn()
+	_check(p2.hp == 60, "third phase is back to normal damage")
+
+	# A pre-existing status still ticks; the new turns are added on top.
+	var p3 := Combatant.new("p", 100)
+	var expose3: Array[CardEffect] = [_expose(3)]
+	var c3 := Combat.new(p3, _deck(10, _card(1, _dmg(1))), _enemies(1, 100, expose3))
+	c3.start()
+	p3.apply_status(Combatant.Status.EXPOSED, 2)
+	c3.end_player_turn()
+	_check(p3.status_turns(Combatant.Status.EXPOSED) == 4, "existing 2 ticks to 1, then intent adds 3")
+
+	# Card-played SELF expose is unchanged: 1 turn covers the same turn's enemy phase.
+	var self_expose := _mode_card(CardData.TargetMode.SELF, [_expose(1)])
+	var hit: Array[CardEffect] = [CardEffect.make(CardEffect.Kind.DAMAGE, 10)]
+	var p4 := Combatant.new("p", 100)
+	var c4 := Combat.new(p4, _deck(10, self_expose), _enemies(1, 100, hit))
+	c4.start()
+	c4.play_card(0)
+	c4.end_player_turn()
+	_check(p4.hp == 85 and p4.status_turns(Combatant.Status.EXPOSED) == 0, "SELF EXPOSE 1 covers exactly this turn's enemy phase")
+
+	# Intent-applied turns do not leak into the next fight.
+	var p5 := Combatant.new("p", 100)
+	var c5 := Combat.new(p5, _deck(10, _card(1, _dmg(1))), _enemies(1, 100, expose3))
+	c5.start()
+	c5.end_player_turn()
+	var next := Combat.new(p5, _deck(10, _card(1, _dmg(1))), _enemies(1, 100, hit))
+	_check(p5.status_turns(Combatant.Status.EXPOSED) == 0, "intent-applied EXPOSE is cleared by the next fight")
+	next.start()
+	next.end_player_turn()
+	_check(p5.hp == 90, "next fight deals normal damage")
 
 
 func _test_expose_on_blocked_hit() -> void:
@@ -429,3 +488,38 @@ func _test_content_loaders_reject_bad_resources() -> void:
 	_check(StarterContent._load_card(StarterContent.WARDEN_PATH) == null, "enemy resource is not accepted as a card")
 	_check(StarterContent._load_enemy(StarterContent.SHOVE_PATH) == null, "card resource is not accepted as an enemy")
 	_check(StarterContent._load_card(StarterContent.SHOVE_PATH) != null, "valid card resource loads")
+
+
+func _test_heal() -> void:
+	var c := Combatant.new("c", 20, 10)
+	_check(c.heal(5) == 5 and c.hp == 15, "heal restores HP")
+	_check(c.heal(100) == 5 and c.hp == 20, "heal never exceeds max HP")
+	_check(c.heal(-3) == 0 and c.hp == 20, "negative heal is ignored")
+
+
+# A persistent player must not keep a finished fight alive through signal links.
+func _test_player_link_removed_when_fight_ends() -> void:
+	var player := Combatant.new("p", 20)
+	var combat := Combat.new(player, _deck(10, _card(1, _dmg(50))), _enemies(1, 30, []))
+	_check(player.changed.get_connections().size() == 1, "player linked to the fight while it runs")
+	combat.start()
+	combat.play_card(0)
+	_check(player.changed.get_connections().size() == 0, "player link removed when the fight ends")
+
+
+func _test_block_cleared_when_fight_ends() -> void:
+	var player := Combatant.new("p", 20)
+	var combat := Combat.new(player, _deck(10, _card(1, _dmg(50))), _enemies(1, 30, []))
+	combat.start()
+	player.gain_block(7)
+	combat.play_card(0)
+	_check(combat.phase == Combat.Phase.ENDED and player.block == 0, "block cleared when the fight ends")
+
+
+# create() logs an error for each bad count; that output is expected here.
+func _test_create_rejects_bad_enemy_counts() -> void:
+	var player := Combatant.new("p", 20)
+	var deck := _deck(10, _card(1, _dmg(1)))
+	_check(Combat.create(player, deck, _enemies(0, 10, [])) == null, "create rejects zero enemies")
+	_check(Combat.create(player, deck, _enemies(Combat.MAX_ENEMIES + 1, 10, [])) == null, "create rejects too many enemies")
+	_check(Combat.create(player, deck, _enemies(Combat.MAX_ENEMIES, 10, [])) != null, "create accepts the maximum")

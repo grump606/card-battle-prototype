@@ -25,6 +25,27 @@ var energy: int = 0
 var turn: int = 0
 var phase: Phase = Phase.NOT_STARTED
 
+# EXPOSE turns that enemy intents applied to the player this enemy phase. They
+# are held back until the player's statuses have ticked, so they start counting
+# from the next enemy phase instead of ticking away unused.
+var _pending_player_expose: int = 0
+
+# The player outlives this fight, so the connection that forwards its changes to
+# state_changed is removed when the fight ends; otherwise every finished fight
+# would stay alive and keep re-emitting.
+var _player_changed_link: Callable = state_changed.emit
+
+
+## Builds a fight, or returns null (after logging why) if the enemy list is not
+## 1 to MAX_ENEMIES long. Use this when the list comes from data that could be
+## bad, such as resources that failed to load; `new()` only asserts, which
+## release builds skip.
+static func create(player_combatant: Combatant, deck: Array[CardData], enemy_datas: Array[EnemyData], rng_seed: int = 0) -> Combat:
+	if enemy_datas.size() < 1 or enemy_datas.size() > MAX_ENEMIES:
+		push_error("Combat.create: needs 1 to %d enemies, got %d" % [MAX_ENEMIES, enemy_datas.size()])
+		return null
+	return Combat.new(player_combatant, deck, enemy_datas, rng_seed)
+
 
 func _init(player_combatant: Combatant, deck: Array[CardData], enemy_datas: Array[EnemyData], rng_seed: int = 0) -> void:
 	assert(enemy_datas.size() >= 1 and enemy_datas.size() <= MAX_ENEMIES, "Combat needs 1 to %d enemies" % MAX_ENEMIES)
@@ -34,7 +55,7 @@ func _init(player_combatant: Combatant, deck: Array[CardData], enemy_datas: Arra
 	# The player outlives fights; statuses must not.
 	player.clear_statuses()
 	piles = CardPiles.new(deck, rng)
-	player.changed.connect(state_changed.emit)
+	player.changed.connect(_player_changed_link)
 	for enemy_data in enemy_datas:
 		var enemy := EnemyUnit.new(enemy_data)
 		enemy.changed.connect(state_changed.emit)
@@ -119,6 +140,12 @@ func end_player_turn() -> void:
 	# After the enemies act, so a 1-turn status on the player still covers the
 	# enemy phase that follows the turn it was applied in.
 	player.tick_statuses()
+	# Enemy-applied EXPOSE lands after the tick: amount N exposes the player for
+	# the next N enemy phases (not the one that applied it, so even later
+	# enemies in that phase hit normally).
+	if _pending_player_expose > 0:
+		player.apply_status(Combatant.Status.EXPOSED, _pending_player_expose)
+		_pending_player_expose = 0
 	_begin_player_turn()
 
 
@@ -141,7 +168,8 @@ func _begin_player_turn() -> void:
 
 
 ## `target` receives damage and statuses; `source` receives block and draws.
-## EXPOSE is card-only: an enemy intent carrying it does nothing.
+## An enemy intent with EXPOSE exposes the player; see `_pending_player_expose`
+## for when it takes effect.
 func _apply(effect: CardEffect, source: Combatant, target: Combatant) -> void:
 	match effect.kind:
 		CardEffect.Kind.DAMAGE:
@@ -155,6 +183,8 @@ func _apply(effect: CardEffect, source: Combatant, target: Combatant) -> void:
 		CardEffect.Kind.EXPOSE:
 			if source == player:
 				target.apply_status(Combatant.Status.EXPOSED, effect.amount)
+			elif target == player:
+				_pending_player_expose += maxi(effect.amount, 0)
 
 
 func _check_end() -> bool:
@@ -164,8 +194,11 @@ func _check_end() -> bool:
 	if not (victory or player.is_dead()):
 		return false
 	phase = Phase.ENDED
+	# Block is per-fight; clear it so callers between fights do not see it stale.
+	player.clear_block()
 	state_changed.emit()
 	# The player can only die on an enemy action and enemies only die on the
 	# player's, so both cannot be true at once.
 	combat_ended.emit(victory)
+	player.changed.disconnect(_player_changed_link)
 	return true

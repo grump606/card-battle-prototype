@@ -29,7 +29,12 @@ func _start_combat() -> void:
 	var enemy_count := randi_range(1, Combat.MAX_ENEMIES)
 	var encounter_rng := RandomNumberGenerator.new()
 	encounter_rng.randomize()
-	_combat = Combat.new(player, StarterContent.extended_deck(), StarterContent.varied_encounter(enemy_count, encounter_rng), randi())
+	var combat := Combat.create(player, StarterContent.extended_deck(), StarterContent.varied_encounter(enemy_count, encounter_rng), randi())
+	if combat == null:
+		_result_label.text = "Could not build this fight (content failed to load). See the Output log."
+		_new_fight_button.show()
+		return
+	_combat = combat
 	_combat.state_changed.connect(_refresh)
 	_combat.combat_ended.connect(_on_combat_ended)
 	_combat.card_played.connect(_on_card_played)
