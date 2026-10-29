@@ -25,6 +25,7 @@ func run() -> int:
 	_test_vendor_gold_and_stale_state()
 	_test_start_combat_twice_releases_first()
 	_test_rewards_rolled_eagerly_and_copied()
+	_test_survivors_from_mutation_audit()
 	return _failures
 
 
@@ -375,3 +376,46 @@ func _test_rewards_rolled_eagerly_and_copied() -> void:
 	var choices := state.reward_choices()
 	choices.clear()
 	_check(state.reward_choices().size() == RunState.REWARD_CHOICES, "mutating the returned choices does not change the offer")
+
+
+func _test_survivors_from_mutation_audit() -> void:
+	# The reward offer is cleared once resolved, so the next victory cannot show stale cards.
+	var rewards := _at_first_fight(41)
+	rewards.complete_combat(true)
+	var first := rewards.reward_choices()
+	_check(first.size() == RunState.REWARD_CHOICES, "setup: a reward was offered")
+	rewards.resolve_reward(first[0])
+	_check(rewards.reward_choices().is_empty(), "no reward choices are left after resolving")
+	rewards.complete_combat(true)
+	_check(rewards.reward_choices().size() == RunState.REWARD_CHOICES, "the next victory offers a fresh set")
+
+	# A vendor heal spends exactly its price from the run's gold.
+	var shop := _at_vendor(42)
+	shop.gold = 100
+	shop.player.take_damage(30)
+	var healed := shop.vendor_buy_heal()
+	_check(healed.ok and shop.gold == 100 - Vendor.HEAL_PRICE, "a vendor heal costs exactly HEAL_PRICE of the run's gold")
+
+	# Rest heals min(REST_HEAL, missing HP), exactly.
+	var resting := _at_first_fight(43)
+	_win_and_skip(resting)
+	_win_and_skip(resting)
+	resting.player.take_damage(10)
+	_check(resting.rest() == 10, "rest heals only the missing HP when that is less than REST_HEAL")
+	var deep := _at_first_fight(44)
+	_win_and_skip(deep)
+	_win_and_skip(deep)
+	deep.player.take_damage(RunState.REST_HEAL + 10)
+	_check(deep.rest() == RunState.REST_HEAL, "rest heals exactly REST_HEAL when more is missing")
+
+	# The line's exact shape, so a silent edit to it is noticed.
+	var shape := []
+	for stop in RunState.new(1).stops:
+		shape.append([stop.type, stop.enemy_count])
+	var want := [
+		[RunState.StopType.STORY, 0], [RunState.StopType.COMBAT, 1], [RunState.StopType.COMBAT, 2],
+		[RunState.StopType.REST, 0], [RunState.StopType.COMBAT, 2], [RunState.StopType.VENDOR, 0],
+		[RunState.StopType.COMBAT, 3], [RunState.StopType.REST, 0], [RunState.StopType.STORY, 0],
+		[RunState.StopType.COMBAT, 3],
+	]
+	_check(shape == want, "the default line has the documented shape: %s" % str(shape))

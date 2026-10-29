@@ -44,6 +44,10 @@ func _initialize() -> void:
 	_test_start_cannot_resurrect_a_fight()
 	_test_statuses_cleared_when_fight_ends()
 	_test_policy_survives_zero_cost_draw_loop()
+	_test_card_costing_exactly_the_energy_is_playable()
+	_test_turn_start_resets_energy_and_hand()
+	_test_all_enemies_payload_skips_the_dead()
+	_test_shuffle_reaches_every_position()
 	_failures += load("res://tests/content_tests.gd").new().run()
 	_failures += load("res://tests/run_state_tests.gd").new().run()
 	_failures += load("res://tests/vendor_tests.gd").new().run()
@@ -603,3 +607,58 @@ func _test_policy_survives_zero_cost_draw_loop() -> void:
 	combat.start()
 	_check(SimPolicy.play_turn(combat), "policy handles a self-recycling zero-cost deck")
 	_check(combat.turn == 2, "the capped turn still ended")
+
+
+func _test_card_costing_exactly_the_energy_is_playable() -> void:
+	var combat := Combat.new(Combatant.new("p", 20), _deck(10, _card(Combat.ENERGY_PER_TURN, _dmg(4))), _enemies(1, 30, []))
+	combat.start()
+	_check(combat.can_play(0) and combat.play_card(0), "a card costing exactly the energy can be played")
+	_check(combat.energy == 0, "paying the whole energy leaves 0")
+	_check(not combat.can_play(0), "nothing is playable with 0 energy left")
+
+
+func _test_turn_start_resets_energy_and_hand() -> void:
+	var combat := Combat.new(Combatant.new("p", 40), _deck(20, _card(1, _dmg(1))), _enemies(1, 99, []))
+	combat.start()
+	var first_hand: Array[CardData] = []
+	first_hand.append_array(combat.piles.hand)
+	combat.end_player_turn()
+	_check(combat.energy == Combat.ENERGY_PER_TURN, "unspent energy does not carry into the next turn")
+	_check(combat.piles.hand.size() == Combat.HAND_SIZE, "the next hand is exactly the hand size, not the old hand plus new cards")
+	_check(combat.piles.discard_pile.size() == first_hand.size(), "the old hand went to the discard pile")
+	combat.play_card(0)
+	combat.end_player_turn()
+	_check(combat.energy == Combat.ENERGY_PER_TURN, "energy is full again after spending some")
+
+
+func _test_all_enemies_payload_skips_the_dead() -> void:
+	var sweep := _mode_card(CardData.TargetMode.ALL_ENEMIES, _dmg(3))
+	var hit := _mode_card(CardData.TargetMode.SINGLE_ENEMY, _dmg(99))
+	# A two-card deck is fully dealt in the opening hand, so no card is missing by chance.
+	var deck: Array[CardData] = [sweep, hit]
+	var combat := Combat.new(Combatant.new("p", 40), deck, _enemies(3, 20, []))
+	var payloads: Array = []
+	combat.card_played.connect(func(_card: CardData, targets: Array[EnemyUnit]) -> void: payloads.append(targets.size()))
+	combat.start()
+	var hit_index := combat.piles.hand.find(hit)
+	_check(hit_index != -1 and combat.piles.hand.has(sweep), "setup: both cards are in the opening hand")
+	combat.play_card(hit_index, 0)
+	var sweep_index := combat.piles.hand.find(sweep)
+	combat.play_card(sweep_index)
+	_check(payloads == [1, 2], "an all-enemies card reports only the living enemies it hit (got %s)" % str(payloads))
+	_check(combat.enemies[0].is_dead() and combat.enemies[1].hp == 17 and combat.enemies[2].hp == 17, "the dead enemy is skipped and the living take the damage")
+
+
+# Every card must be able to land in every position, or the shuffle is biased.
+func _test_shuffle_reaches_every_position() -> void:
+	var cards: Array[CardData] = []
+	for i in 3:
+		cards.append(CardData.make(StringName("s%d" % i), "S%d" % i, 1, _dmg(1)))
+	var seen := {}
+	for seed_value in 300:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = seed_value
+		var piles := CardPiles.new(cards, rng)
+		for position in piles.draw_pile.size():
+			seen["%d:%s" % [position, piles.draw_pile[position].id]] = true
+	_check(seen.size() == 9, "a shuffled 3-card pile puts every card at every position (%d of 9 seen)" % seen.size())

@@ -14,6 +14,7 @@ func run() -> int:
 	_test_buy_heal()
 	_test_failed_purchases_change_nothing()
 	_test_gold_for_win()
+	_test_exact_gold_and_price_boundaries()
 	return _failures
 
 
@@ -133,14 +134,21 @@ func _test_failed_purchases_change_nothing() -> void:
 	_check(vendor.gold == 1 and deck == snapshot and hurt.hp == 10, "failed purchases change nothing")
 	_check(not vendor.has_removed() and not vendor.has_healed() and not vendor.offers()[0]["sold"], "failed purchases set no flags")
 	_check(not vendor.buy_card(-1).ok and not vendor.buy_card(Vendor.STOCK_CARDS).ok, "bad offer index refused")
-	# Spend everything available: gold must never go negative.
+	# Spend everything available: gold must match the spending exactly and never go negative.
 	var rich := _vendor(5, 40, deck)
+	var spent := 0
 	for i in Vendor.STOCK_CARDS:
-		rich.buy_card(i)
-		_check(rich.gold >= 0, "gold never negative after buy %d" % i)
-	rich.remove_card(0)
-	rich.buy_heal(hurt)
-	_check(rich.gold >= 0, "gold never negative after services")
+		var bought := rich.buy_card(i)
+		if bought.ok:
+			spent += bought.spent
+		_check(rich.gold >= 0 and rich.gold == 40 - spent, "gold exactly 40 minus spending after buy %d" % i)
+	var removed := rich.remove_card(0)
+	if removed.ok:
+		spent += removed.spent
+	var healed := rich.buy_heal(hurt)
+	if healed.ok:
+		spent += healed.spent
+	_check(rich.gold >= 0 and rich.gold == 40 - spent, "gold exactly 40 minus spending after services")
 
 
 func _test_gold_for_win() -> void:
@@ -148,3 +156,33 @@ func _test_gold_for_win() -> void:
 	_check(Vendor.gold_for_win(3) == 3 * Vendor.GOLD_PER_ENEMY + Vendor.GOLD_WIN_BONUS, "gold_for_win(3)")
 	_check(Vendor.gold_for_win(2) > Vendor.gold_for_win(1), "more enemies pay more")
 	_check(Vendor.gold_for_win(0) == 0, "gold_for_win(0) awards nothing")
+
+
+# Spending exactly the gold you have must work, and tier boundaries must sit where documented.
+func _test_exact_gold_and_price_boundaries() -> void:
+	var deck := StarterContent.deck()
+	var probe := _vendor(7, 0, deck)
+	var price: int = probe.offers()[0]["price"]
+	var exact := _vendor(7, price, deck)
+	var bought := exact.buy_card(0)
+	_check(bought.ok and exact.gold == 0, "a card can be bought with exactly its price in gold")
+	var one_short := _vendor(7, price - 1, deck)
+	_check(not one_short.buy_card(0).ok and one_short.gold == price - 1, "one gold short is refused")
+
+	var hurt := Combatant.new("Soul", 40, 10)
+	var heal_exact := _vendor(7, Vendor.HEAL_PRICE, deck)
+	_check(heal_exact.buy_heal(hurt).ok and heal_exact.gold == 0, "a heal can be bought with exactly its price in gold")
+	var remove_exact := _vendor(7, Vendor.REMOVE_CARD_PRICE, deck)
+	_check(remove_exact.remove_card(0).ok and remove_exact.gold == 0, "a removal can be bought with exactly its price in gold")
+
+	# card_value = 2*cost + damage + block + 2*expose + 3*draw; tiers switch AT MID_FROM and PRICEY_FROM.
+	var at_mid := CardData.make(&"t_at_mid", "AtMid", 0, [CardEffect.make(CardEffect.Kind.DAMAGE, Vendor.MID_FROM)] as Array[CardEffect])
+	var below_mid := CardData.make(&"t_below_mid", "BelowMid", 0, [CardEffect.make(CardEffect.Kind.DAMAGE, Vendor.MID_FROM - 1)] as Array[CardEffect])
+	var at_pricey := CardData.make(&"t_at_pricey", "AtPricey", 0, [CardEffect.make(CardEffect.Kind.DAMAGE, Vendor.PRICEY_FROM)] as Array[CardEffect])
+	var below_pricey := CardData.make(&"t_below_pricey", "BelowPricey", 0, [CardEffect.make(CardEffect.Kind.DAMAGE, Vendor.PRICEY_FROM - 1)] as Array[CardEffect])
+	_check(Vendor.card_price(below_mid) == Vendor.PRICE_CHEAP and Vendor.card_price(at_mid) == Vendor.PRICE_MID, "the cheap/mid tier switches exactly at MID_FROM")
+	_check(Vendor.card_price(below_pricey) == Vendor.PRICE_MID and Vendor.card_price(at_pricey) == Vendor.PRICE_PRICEY, "the mid/pricey tier switches exactly at PRICEY_FROM")
+
+	# push_error is expected for a negative starting amount.
+	var broke := _vendor(7, -5, deck)
+	_check(broke.gold == 0, "negative starting gold is clamped to 0")

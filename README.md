@@ -9,7 +9,8 @@ A small turn-based card battler (afterlife-escape theme) built with Godot 4.7, G
 - `run/run_state.gd` - the run layer, rules only: a fixed 10-stop line (story, combat, rest, vendor) with the player's HP and deck carried from stop to stop. Wins pay gold and offer a pick-one-of-three card reward; rests heal 24; a defeat ends the run; passing the last stop escapes. The run uses 50 max HP (combat on its own, and the combat sim, use 40). `run/vendor.gd` is the vendor visit (3 cards for sale, remove a card, heal; placeholder prices), `run/story_beat.gd` / `run/story_content.gd` + `data/story/` are the cutscene beats. New stop kinds are new `StopType` values plus one branch in `run.gd`.
 - `run.gd` / `run.tscn` - the run screen (main scene, F5): a thin view over `RunState` that embeds `battle.tscn` for combat stops and shows small panels for rewards, rests and the end card.
 - `tests/run_tests.gd` - headless rules tests (also runs `content_tests.gd` and `run_state_tests.gd`). `tests/smoke_main.gd` - loads and instantiates the main scene.
-- `scripts/check.ps1` - full validation.
+- `tests/ui_battle_test.gd` / `tests/ui_flow_test.gd` - headless UI tests: the battle screen (pile counts, tooltips, damage preview, keys) and whole runs driven through the real `run.tscn` buttons.
+- `scripts/check.ps1` - full validation: import, rules tests, smoke load, both UI tests. Each step has a timeout (300 s, `CHECK_STEP_TIMEOUT_MS` to change) so a hang fails instead of blocking.
 
 ## Run
 

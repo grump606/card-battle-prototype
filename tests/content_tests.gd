@@ -13,6 +13,7 @@ func run() -> int:
 	_test_existing_content_unchanged()
 	_test_varied_encounter()
 	_test_encounter_composition()
+	_test_colossus_never_in_pairs_or_trios()
 	return _failures
 
 
@@ -52,6 +53,7 @@ func _test_new_enemies_load() -> void:
 	var colossus := StarterContent._load_enemy(StarterContent.COLOSSUS_PATH)
 	var shade := StarterContent.lost_shade()
 	var warden := StarterContent.warden()
+	_check(wisp != null and colossus != null and shade != null and warden != null, "all four enemies used for the role checks loaded")
 	if wisp != null and colossus != null and shade != null and warden != null:
 		# Relative, so retuning numbers does not break the test; the roles must hold.
 		_check(wisp.max_hp < shade.max_hp, "wisp is the most fragile small enemy")
@@ -132,3 +134,18 @@ func _test_encounter_composition() -> void:
 		saw_big_pair = saw_big_pair or big_count == 1
 		saw_small_pair = saw_small_pair or big_count == 0
 	_check(saw_big_pair and saw_small_pair, "both pair compositions occur across seeds")
+
+
+## The Colossus is a solo-only elite: it was unwinnable beside another enemy in the sim.
+func _test_colossus_never_in_pairs_or_trios() -> void:
+	var colossus_name: String = StarterContent._load_enemy(StarterContent.COLOSSUS_PATH).display_name
+	var solo_seen := false
+	for seed_value in 300:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = seed_value
+		for count in [2, 3]:
+			for enemy in StarterContent.varied_encounter(count, rng):
+				_check(enemy.display_name != colossus_name, "the colossus never shares a fight (seed %d, %d enemies)" % [seed_value, count])
+		for enemy in StarterContent.varied_encounter(1, rng):
+			solo_seen = solo_seen or enemy.display_name == colossus_name
+	_check(solo_seen, "the colossus does appear as a solo fight")
