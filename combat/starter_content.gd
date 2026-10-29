@@ -30,6 +30,9 @@ const ALL_ENEMY_PATHS: Array[String] = [WARDEN_PATH, LOST_SHADE_PATH, WISP_PATH,
 const PAIR_BIG_ENEMY_PATHS: Array[String] = [WARDEN_PATH]
 const SMALL_ENEMY_PATHS: Array[String] = [LOST_SHADE_PATH, WISP_PATH, WHISPERER_PATH]
 ## Chance that a two-enemy encounter is a big plus a small enemy rather than two small ones.
+## Trios leave out the Lost Shade (the sturdiest small enemy): three of them out-damaged the
+## run mid-line, and the fragile wisp and whisperer keep a three-way fight winnable.
+const TRIO_ENEMY_PATHS: Array[String] = [WISP_PATH, WHISPERER_PATH]
 const BIG_PAIR_CHANCE := 0.15
 
 
@@ -124,7 +127,7 @@ static func varied_encounter(enemy_count: int, rng: RandomNumberGenerator) -> Ar
 				paths.append(_pick_path(SMALL_ENEMY_PATHS, rng))
 		_:
 			for i in count:
-				paths.append(_pick_path(SMALL_ENEMY_PATHS, rng))
+				paths.append(_pick_path(TRIO_ENEMY_PATHS, rng))
 	var enemies: Array[EnemyData] = []
 	for path in paths:
 		var enemy := _load_enemy(path)

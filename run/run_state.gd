@@ -10,7 +10,7 @@ extends RefCounted
 
 enum StopType { COMBAT, REST, STORY, VENDOR }
 
-const START_HP := 52
+const START_HP := 51
 const REST_HEAL := 24
 const REWARD_CHOICES := 3
 

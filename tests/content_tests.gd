@@ -126,6 +126,7 @@ func _test_encounter_composition() -> void:
 		var trio := StarterContent.varied_encounter(3, rng)
 		for enemy in trio:
 			_check(not big_names.has(enemy.display_name), "trio has no big enemy (seed %d)" % seed_value)
+			_check(enemy.display_name != StarterContent.lost_shade().display_name, "trio has no Lost Shade (seed %d)" % seed_value)
 		var pair := StarterContent.varied_encounter(2, rng)
 		var big_count := 0
 		for enemy in pair:
