@@ -38,22 +38,13 @@ Expect `FAILURES: 0`.
 
 ## Add a card
 
-In `combat/starter_content.gd`, append to `deck()`:
-
-```gdscript
-cards.append(CardData.make(&"my_card", "My Card", 1, [
-	CardEffect.make(CardEffect.Kind.DAMAGE, 4),
-	CardEffect.make(CardEffect.Kind.BLOCK, 2),
-]))
-```
-
-Effect kinds: `DAMAGE`, `BLOCK`, `DRAW`. A card may have several effects; cost 0 is allowed.
+Cards are `.tres` resources under `data/cards/` (copy an existing one, e.g. `shove.tres`, and keep its script `ext_resource` lines). Set `id`, `display_name`, `cost` (0 is allowed), `effects`, and `target_mode` (see below). Effect `kind` values: `0` DAMAGE, `1` BLOCK, `2` DRAW, `3` EXPOSE; a card may have several effects, applied in order. Then in `combat/starter_content.gd` add a path constant and put the card in `deck()` / `extended_deck()`. Open the project once (or run `--import`) so Godot registers the new file.
 
 ## Add an enemy
 
-Add a static function to `combat/starter_content.gd` returning `EnemyData.make(name, max_hp, intents)`, where `intents` is an `Array[CardEffect]` the enemy cycles through one per turn (empty means it does nothing). Then include it in an encounter such as `early_encounter()`. An encounter must have 1 to `Combat.MAX_ENEMIES` (3) enemies.
+Enemies are `.tres` resources under `data/enemies/` (copy e.g. `lost_shade.tres`): `display_name`, `max_hp`, and `intents`, a list of effects the enemy cycles through one per turn (empty means it does nothing; DAMAGE and BLOCK act on the enemy's turn, EXPOSE exposes the player). In `combat/starter_content.gd` add a path constant and include it in `ALL_ENEMY_PATHS` and, if it should appear in packs, `SMALL_ENEMY_PATHS`. An encounter must have 1 to `Combat.MAX_ENEMIES` (3) enemies.
 
-Add a test in `tests/run_tests.gd` (a `_test_*` function plus a call in `_initialize`) for any new rule.
+Add a test in `tests/run_tests.gd` (a `_test_*` function plus a call in `_initialize`) for any new rule, and check the sim (below) for balance.
 
 ## Card target modes and statuses
 

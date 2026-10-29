@@ -37,18 +37,22 @@ var _player_changed_link: Callable = state_changed.emit
 
 
 ## Builds a fight, or returns null (after logging why) if the enemy list is not
-## 1 to MAX_ENEMIES long. Use this when the list comes from data that could be
-## bad, such as resources that failed to load; `new()` only asserts, which
-## release builds skip.
+## 1 to MAX_ENEMIES long or the player is already dead. Use this when the inputs
+## come from data that could be bad, such as resources that failed to load;
+## `new()` only asserts, which release builds skip.
 static func create(player_combatant: Combatant, deck: Array[CardData], enemy_datas: Array[EnemyData], rng_seed: int = 0) -> Combat:
 	if enemy_datas.size() < 1 or enemy_datas.size() > MAX_ENEMIES:
 		push_error("Combat.create: needs 1 to %d enemies, got %d" % [MAX_ENEMIES, enemy_datas.size()])
+		return null
+	if player_combatant.is_dead():
+		push_error("Combat.create: the player is already dead")
 		return null
 	return Combat.new(player_combatant, deck, enemy_datas, rng_seed)
 
 
 func _init(player_combatant: Combatant, deck: Array[CardData], enemy_datas: Array[EnemyData], rng_seed: int = 0) -> void:
 	assert(enemy_datas.size() >= 1 and enemy_datas.size() <= MAX_ENEMIES, "Combat needs 1 to %d enemies" % MAX_ENEMIES)
+	assert(not player_combatant.is_dead(), "Combat needs a living player")
 	var rng := RandomNumberGenerator.new()
 	rng.seed = rng_seed
 	player = player_combatant
@@ -65,6 +69,17 @@ func _init(player_combatant: Combatant, deck: Array[CardData], enemy_datas: Arra
 func start() -> void:
 	assert(phase == Phase.NOT_STARTED, "Combat already started")
 	_begin_player_turn()
+
+
+## Gives up on a fight that has not ended (for example a caller's stall cap) so
+## the player can be reused: removes the link to the player and ends the fight
+## without emitting `combat_ended` or any other signal. No-op once ended.
+func abandon() -> void:
+	if phase == Phase.ENDED:
+		return
+	phase = Phase.ENDED
+	player.changed.disconnect(_player_changed_link)
+	player.clear_block()
 
 
 func living_enemies() -> Array[EnemyUnit]:

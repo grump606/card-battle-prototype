@@ -38,6 +38,9 @@ func _initialize() -> void:
 	_test_player_link_removed_when_fight_ends()
 	_test_block_cleared_when_fight_ends()
 	_test_create_rejects_bad_enemy_counts()
+	_test_damage_after_status()
+	_test_abandon_releases_player()
+	_test_create_rejects_dead_player()
 	_failures += load("res://tests/content_tests.gd").new().run()
 	print("FAILURES: %d" % _failures)
 	quit(1 if _failures > 0 else 0)
@@ -523,3 +526,31 @@ func _test_create_rejects_bad_enemy_counts() -> void:
 	_check(Combat.create(player, deck, _enemies(0, 10, [])) == null, "create rejects zero enemies")
 	_check(Combat.create(player, deck, _enemies(Combat.MAX_ENEMIES + 1, 10, [])) == null, "create rejects too many enemies")
 	_check(Combat.create(player, deck, _enemies(Combat.MAX_ENEMIES, 10, [])) != null, "create accepts the maximum")
+
+
+func _test_damage_after_status() -> void:
+	var c := Combatant.new("c", 50)
+	_check(c.damage_after_status(7) == 7 and c.damage_after_status(-4) == 0, "no status: damage unchanged, negatives floor at 0")
+	c.apply_status(Combatant.Status.EXPOSED, 1)
+	_check(c.damage_after_status(7) == 10 and c.damage_after_status(1) == 1 and c.damage_after_status(0) == 0, "exposed: x1.5 rounded down, a real hit stays at least 1")
+	_check(c.take_damage(7) == 10, "take_damage uses the same scaling")
+
+
+func _test_abandon_releases_player() -> void:
+	var player := Combatant.new("p", 20)
+	var combat := Combat.new(player, _deck(10, _card(1, _dmg(1))), _enemies(1, 30, []))
+	var ended: Array = []
+	combat.combat_ended.connect(ended.append)
+	combat.start()
+	player.gain_block(4)
+	combat.abandon()
+	_check(player.changed.get_connections().size() == 0, "abandon removes the player link")
+	_check(combat.phase == Combat.Phase.ENDED and player.block == 0 and ended.is_empty(), "abandon ends the fight quietly and clears block")
+	combat.abandon()
+	_check(not combat.play_card(0) and player.changed.get_connections().size() == 0, "abandon twice is safe; no plays after")
+
+
+# create() logs an error for a dead player; that output is expected here.
+func _test_create_rejects_dead_player() -> void:
+	var dead := Combatant.new("d", 10, 0)
+	_check(Combat.create(dead, _deck(10, _card(1, _dmg(1))), _enemies(1, 10, [])) == null, "create rejects a dead player")

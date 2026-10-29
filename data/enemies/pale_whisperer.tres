@@ -16,10 +16,10 @@ amount = 5
 [sub_resource type="Resource" id="Resource_i3"]
 script = ExtResource("2_effect")
 kind = 0
-amount = 7
+amount = 8
 
 [resource]
 script = ExtResource("1_enemy")
 display_name = "Pale Whisperer"
-max_hp = 16
+max_hp = 17
 intents = Array[ExtResource("2_effect")]([SubResource("Resource_i1"), SubResource("Resource_i2"), SubResource("Resource_i3")])

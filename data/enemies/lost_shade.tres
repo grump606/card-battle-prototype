@@ -16,5 +16,5 @@ amount = 7
 [resource]
 script = ExtResource("1_enemy")
 display_name = "Lost Shade"
-max_hp = 23
+max_hp = 26
 intents = Array[ExtResource("2_effect")]([SubResource("Resource_i1"), SubResource("Resource_i2")])

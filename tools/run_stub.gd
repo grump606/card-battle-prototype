@@ -86,6 +86,7 @@ func _run(run_seed: int) -> int:
 func _play(combat: Combat) -> bool:
 	while combat.phase == Combat.Phase.PLAYER_TURN:
 		if combat.turn > TURN_CAP:
+			combat.abandon() # release the persistent player from the stalled fight
 			return true
 		var hand_index := _first_affordable(combat)
 		while hand_index != -1:

@@ -77,12 +77,19 @@ func tick_statuses() -> void:
 	changed.emit()
 
 
-## Returns the HP actually lost. EXPOSED scales the incoming hit before block
-## absorbs any of it.
-func take_damage(amount: int) -> int:
+## What an incoming hit of `amount` becomes after status effects, before block
+## absorbs any of it: EXPOSED scales it (rounded down, never below 1 for a real
+## hit). Pure, so a UI can preview a hit without applying it.
+func damage_after_status(amount: int) -> int:
 	amount = maxi(amount, 0)
 	if amount > 0 and status_turns(Status.EXPOSED) > 0:
 		amount = maxi(amount * EXPOSED_NUM / EXPOSED_DEN, 1)
+	return amount
+
+
+## Returns the HP actually lost.
+func take_damage(amount: int) -> int:
+	amount = damage_after_status(amount)
 	var absorbed := mini(block, amount)
 	block -= absorbed
 	var lost := mini(amount - absorbed, hp)

@@ -14,6 +14,9 @@ const BRACE_PATH := "res://data/cards/brace.tres"
 const STEADY_BREATH_PATH := "res://data/cards/steady_breath.tres"
 const SHOULDER_CHARGE_PATH := "res://data/cards/shoulder_charge.tres"
 const MARK_THE_WEAK_PATH := "res://data/cards/mark_the_weak.tres"
+const SWEEP_PATH := "res://data/cards/sweep.tres"
+const CUTTING_WORD_PATH := "res://data/cards/cutting_word.tres"
+const SECOND_WIND_PATH := "res://data/cards/second_wind.tres"
 const WISP_PATH := "res://data/enemies/skittering_wisp.tres"
 const COLOSSUS_PATH := "res://data/enemies/hollow_colossus.tres"
 const WHISPERER_PATH := "res://data/enemies/pale_whisperer.tres"
@@ -45,16 +48,16 @@ static func deck() -> Array[CardData]:
 	return cards
 
 
-## Balance-testing deck of EXTENDED_DECK_SIZE (14) cards: 4 Shove, 3 Slip Past,
-## 1 Glimpse the Exit, 2 Heavy Blow, 1 Brace, 1 Steady Breath, 1 Shoulder Charge,
-## 1 Mark the Weak.
+## Balance-testing deck of EXTENDED_DECK_SIZE (14) cards: 3 Shove, 2 Slip Past,
+## 1 Glimpse the Exit, 1 Heavy Blow, 1 Brace, 1 Steady Breath, 1 Shoulder Charge,
+## 1 Mark the Weak, 1 Sweep, 1 Cutting Word, 1 Second Wind.
 ## Returns an empty deck (and logs the cause) if any card resource fails to load.
 static func extended_deck() -> Array[CardData]:
 	var cards: Array[CardData] = []
 	var plan: Array = [
-		[SHOVE_PATH, 4], [SLIP_PAST_PATH, 3], [GLIMPSE_EXIT_PATH, 1],
-		[HEAVY_BLOW_PATH, 2], [BRACE_PATH, 1], [STEADY_BREATH_PATH, 1], [SHOULDER_CHARGE_PATH, 1],
-		[MARK_THE_WEAK_PATH, 1],
+		[SHOVE_PATH, 3], [SLIP_PAST_PATH, 2], [GLIMPSE_EXIT_PATH, 1],
+		[HEAVY_BLOW_PATH, 1], [BRACE_PATH, 1], [STEADY_BREATH_PATH, 1], [SHOULDER_CHARGE_PATH, 1],
+		[MARK_THE_WEAK_PATH, 1], [SWEEP_PATH, 1], [CUTTING_WORD_PATH, 1], [SECOND_WIND_PATH, 1],
 	]
 	for entry in plan:
 		var card := _load_card(entry[0] as String)
@@ -87,7 +90,7 @@ static func early_encounter(enemy_count: int) -> Array[EnemyData]:
 	return enemies
 
 
-## All enemy types in a fixed order: warden, lost shade, wisp, colossus.
+## All enemy types in a fixed order: warden, lost shade, wisp, colossus, whisperer.
 ## Enemies that fail to load are left out (the cause is logged).
 static func enemy_pool() -> Array[EnemyData]:
 	var pool: Array[EnemyData] = []

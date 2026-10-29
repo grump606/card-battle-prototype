@@ -66,7 +66,7 @@ func _test_extended_deck() -> void:
 	for card in deck:
 		counts[card.id] = counts.get(card.id, 0) + 1
 		_check(card.cost >= 0 and card.cost <= 3, "extended card playable: %s" % card.id)
-	var want := {&"shove": 4, &"slip_past": 3, &"glimpse_exit": 1, &"heavy_blow": 2, &"brace": 1, &"steady_breath": 1, &"shoulder_charge": 1, &"mark_the_weak": 1}
+	var want := {&"shove": 3, &"slip_past": 2, &"glimpse_exit": 1, &"heavy_blow": 1, &"brace": 1, &"steady_breath": 1, &"shoulder_charge": 1, &"mark_the_weak": 1, &"sweep": 1, &"cutting_word": 1, &"second_wind": 1}
 	_check(counts == want, "extended deck composition: %s" % str(counts))
 
 

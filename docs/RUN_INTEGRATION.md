@@ -52,7 +52,7 @@ Drive it with `can_play(i)`, `play_card(i, target_index := -1)` and `end_player_
 
 ## API gaps
 
-Fixed after the stub exposed them: `Combatant.heal()`, the player signal link now removed when a fight ends, block cleared at fight end, and `Combat.create()` for validated construction.
+Fixed after the stub exposed them: `Combatant.heal()`, the player signal link now removed when a fight ends, block cleared at fight end, and `Combat.create()` for validated construction (bad enemy count or an already-dead player returns null). A fight you give up on (for example a stall cap) must be released with `combat.abandon()`, which removes the player link without emitting `combat_ended`; otherwise the link stays on the persistent player.
 
 Still open (minor, caller-side workarounds below):
 
@@ -61,4 +61,4 @@ Still open (minor, caller-side workarounds below):
 
 ## How the stub demonstrates the seam
 
-`godot --headless --path . -s res://tools/run_stub.gd -- --seed 1` builds one `Combatant` (40 HP) and the extended deck, then chains fights with 1, 2 and 3 enemies from `varied_encounter`, using one run RNG for encounters, per-fight combat seeds and rewards. Between fights it heals 8 (clamped) and appends one reward card (a random distinct card type from the extended deck). It stops on a loss or a stall. Per-fight lines show HP in and out, and the next fight's "HP before" equals the previous line's post-rest HP (seed 5: 40 -> 28 +8 = 36, fight 3 starts at 36). After `start()` the stub asserts block is 0 and EXPOSED is 0, failing with exit 1 if state leaked. Same seed gives identical output; a bad `--seed` prints usage and exits 2.
+`godot --headless --path . -s res://tools/run_stub.gd -- --seed 1` builds one `Combatant` (40 HP) and the extended deck, then chains fights with 1, 2 and 3 enemies from `varied_encounter`, using one run RNG for encounters, per-fight combat seeds and rewards. Between fights it heals 8 (clamped) and appends one reward card (a random distinct card type from the extended deck). It stops on a loss or a stall. Per-fight lines show HP in and out, and the next fight's "HP before" equals the previous line's post-rest HP (compare consecutive lines of the output). After `start()` the stub asserts block is 0 and EXPOSED is 0, failing with exit 1 if state leaked. Same seed gives identical output; a bad `--seed` prints usage and exits 2.
