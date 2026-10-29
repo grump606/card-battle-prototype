@@ -30,7 +30,7 @@ const ALL_ENEMY_PATHS: Array[String] = [WARDEN_PATH, LOST_SHADE_PATH, WISP_PATH,
 const PAIR_BIG_ENEMY_PATHS: Array[String] = [WARDEN_PATH]
 const SMALL_ENEMY_PATHS: Array[String] = [LOST_SHADE_PATH, WISP_PATH, WHISPERER_PATH]
 ## Chance that a two-enemy encounter is a big plus a small enemy rather than two small ones.
-const BIG_PAIR_CHANCE := 0.35
+const BIG_PAIR_CHANCE := 0.15
 
 
 ## Card definitions are immutable data, so deck slots of the same card share one instance.
