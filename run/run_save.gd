@@ -1,0 +1,158 @@
+class_name RunSave
+extends RefCounted
+## Save and restore of an in-progress run, kept apart from RunState so the rules
+## class stays pure. A save is written only at a stop boundary (RunState.
+## at_stop_boundary: no fight, reward or vendor visit in flight), so it holds
+## just the player, deck, gold, stop index and the run RNG position.
+## A save file is untrusted input: from_dict / load_file validate every field and
+## return a Result with an error message instead of ever failing.
+
+const VERSION := 1
+const DEFAULT_PATH := "user://run_save.json"
+const MAX_FILE_BYTES := 1048576
+const MAX_DECK := 200
+const MAX_GOLD := 1000000
+const MAX_HP := 10000
+
+
+class Result extends RefCounted:
+	var run: RunState = null
+	## Empty when `run` is valid.
+	var error := ""
+	## True when there was simply no save file (not worth a warning).
+	var missing := false
+
+	static func fail(why: String) -> Result:
+		var result := Result.new()
+		result.error = why
+		return result
+
+
+static func to_dict(run: RunState) -> Dictionary:
+	var ids: Array = []
+	for card in run.deck:
+		ids.append(String(card.id))
+	return {
+		"version": VERSION,
+		"hp": run.player.hp,
+		"max_hp": run.player.max_hp,
+		"gold": run.gold,
+		"stop_index": run.stop_index,
+		"deck": ids,
+		# A string: JSON numbers are doubles and would round a 64-bit state.
+		"rng_state": str(run.rng_state()),
+	}
+
+
+static func from_dict(data: Variant) -> Result:
+	if typeof(data) != TYPE_DICTIONARY:
+		return Result.fail("save is not an object")
+	var d: Dictionary = data
+	var version: Variant = _int(d, "version", 0, 1000000)
+	if version == null:
+		return Result.fail("save has no valid version")
+	if version != VERSION:
+		return Result.fail("save version %d is not supported (expected %d)" % [version, VERSION])
+	var run := RunState.new(0)
+	var max_hp: Variant = _int(d, "max_hp", 1, MAX_HP)
+	if max_hp == null:
+		return Result.fail("bad max_hp")
+	var hp: Variant = _int(d, "hp", 1, max_hp)
+	if hp == null:
+		return Result.fail("bad hp")
+	var gold: Variant = _int(d, "gold", 0, MAX_GOLD)
+	if gold == null:
+		return Result.fail("bad gold")
+	var stop_index: Variant = _int(d, "stop_index", 0, run.stops.size() - 1)
+	if stop_index == null:
+		return Result.fail("bad stop_index")
+	var rng_text: Variant = d.get("rng_state")
+	if typeof(rng_text) != TYPE_STRING or not (rng_text as String).is_valid_int():
+		return Result.fail("bad rng_state")
+	var raw_deck: Variant = d.get("deck")
+	if typeof(raw_deck) != TYPE_ARRAY or (raw_deck as Array).is_empty() or (raw_deck as Array).size() > MAX_DECK:
+		return Result.fail("bad deck")
+	var known := {}
+	for card in StarterContent.extended_deck():
+		known[String(card.id)] = card
+	if known.is_empty():
+		return Result.fail("card content failed to load")
+	var deck: Array[CardData] = []
+	for entry in raw_deck:
+		if typeof(entry) != TYPE_STRING or not known.has(entry):
+			return Result.fail("deck has an unknown card")
+		deck.append(known[entry])
+	run.player = Combatant.new("Wanderer", max_hp, hp)
+	run.deck = deck
+	run.gold = gold
+	run.stop_index = stop_index
+	run.restore_rng_state((rng_text as String).to_int())
+	return _ok(run)
+
+
+## Returns "" on success, else why the save failed. Writes to a temp file and
+## renames it, so a crash mid-write never leaves a half-written save.
+static func save(run: RunState, path: String = DEFAULT_PATH) -> String:
+	if not run.at_stop_boundary():
+		return "run is not at a stop boundary"
+	var tmp := path + ".tmp"
+	var file := FileAccess.open(tmp, FileAccess.WRITE)
+	if file == null:
+		return "cannot write %s (error %d)" % [tmp, FileAccess.get_open_error()]
+	file.store_string(JSON.stringify(to_dict(run)))
+	var write_error := file.get_error()
+	file.close()
+	if write_error != OK:
+		return "write failed (error %d)" % write_error
+	var rename_error := DirAccess.rename_absolute(tmp, path)
+	if rename_error != OK:
+		return "cannot move save into place (error %d)" % rename_error
+	return ""
+
+
+static func load_file(path: String = DEFAULT_PATH) -> Result:
+	if not FileAccess.file_exists(path):
+		var none := Result.new()
+		none.missing = true
+		none.error = "no save"
+		return none
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		return Result.fail("cannot read save (error %d)" % FileAccess.get_open_error())
+	if file.get_length() > MAX_FILE_BYTES:
+		return Result.fail("save file is too large")
+	var text := file.get_as_text()
+	file.close()
+	var json := JSON.new()
+	if json.parse(text) != OK:
+		return Result.fail("save is not valid JSON")
+	return from_dict(json.data)
+
+
+## Returns "" on success (or when there was nothing to delete), else why it failed.
+static func delete(path: String = DEFAULT_PATH) -> String:
+	if not FileAccess.file_exists(path):
+		return ""
+	var error := DirAccess.remove_absolute(path)
+	return "" if error == OK else "cannot delete save (error %d)" % error
+
+
+## The integer at `key` within [low, high], or null. JSON numbers arrive as floats.
+static func _int(d: Dictionary, key: String, low: int, high: int) -> Variant:
+	var value: Variant = d.get(key)
+	if typeof(value) == TYPE_FLOAT:
+		var f: float = value
+		if f != floorf(f) or absf(f) > 1.0e15:
+			return null
+		value = int(f)
+	if typeof(value) != TYPE_INT:
+		return null
+	if value < low or value > high:
+		return null
+	return value
+
+
+static func _ok(run: RunState) -> Result:
+	var result := Result.new()
+	result.run = run
+	return result

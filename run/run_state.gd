@@ -80,6 +80,21 @@ func reward_pending() -> bool:
 	return _reward_pending
 
 
+## True between stops: nothing is in flight (no fight, reward or vendor visit), so
+## the run can be saved and restored exactly (see run/run_save.gd).
+func at_stop_boundary() -> bool:
+	return not finished and not _reward_pending and _vendor == null and _active_combat == null
+
+
+## The run RNG's position, for saving. Restoring it makes the future identical.
+func rng_state() -> int:
+	return _rng.state
+
+
+func restore_rng_state(state: int) -> void:
+	_rng.state = state
+
+
 ## Builds the fight for the current COMBAT stop, or null (after logging why) if
 ## this is not a combat stop or the content failed to load. Asking again at the
 ## same stop abandons the previous fight (releasing its link to the player) and
