@@ -5,15 +5,14 @@ Last updated at the end of the classes work. Everything below is on `main` and p
 ## State
 
 - Three characters (Deserter, Pickpocket, Medium) with class cards, a neutral pool, a character select screen, a pause menu and save/resume.
-- Classes plan: Phases 1 to 6 done (infrastructure, select screen, the three classes' mechanics and cards, bots and balance). Phase 7 (story) not started. Details: `docs/CLASSES_PLAN.md`.
+- Classes plan: Phases 1 to 6 done (infrastructure, select screen, the three classes' mechanics and cards, bots and balance). Phase 7 (story) done: per-character boarding, Conductor and Last Light beats under `data/story/<id>/`, neutral fallback (uncommitted draft text, edit freely). Details: `docs/CLASSES_PLAN.md`.
 - Greedy-bot escape rates sit at 40 to 50% for every class (Deserter 47 HP, Pickpocket 34 HP, Medium 41 HP). Smart bot: about 75% / 62% / 56%.
 
 ## To do, in the order I would take it
 
 1. **Playtest each class** and say how it feels. The numbers are tuned against bots, not people. Watch the Deserter (the skill-sensitive one) and the Medium (very HP-sensitive: 38 to 48 HP moved it from 28% to 68%).
-2. **Phase 7: class-specific story.** Per-character boarding, Conductor and Last Light beats (why this passenger is aboard, what the Conductor says to them). `StoryContent.beat(character, index)` with a neutral fallback. The stop-line signature check must still pass.
-3. **Card rewards rework** (you said rewards could use work). Not designed yet.
-4. **Pause screen artwork** ("full cut scene"). Not designed yet.
+2. **Card rewards rework** (you said rewards could use work). Not designed yet.
+3. **Pause screen artwork** ("full cut scene"). Not designed yet.
 
 ## Smaller open items
 

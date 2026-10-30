@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="StoryBeat" format=3]
+
+[ext_resource type="Script" path="res://run/story_beat.gd" id="1_beat"]
+
+[resource]
+script = ExtResource("1_beat")
+title = "The Last Light"
+text = "Far ahead, past the final bend, the tunnel thins into a pale glow. The carriage rattles louder, hungrier.
+
+Something waits between you and the light. For once there is nowhere behind you to run to. You plant your feet."
+button_text = "Stand and face it"

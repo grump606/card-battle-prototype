@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="StoryBeat" format=3]
+
+[ext_resource type="Script" path="res://run/story_beat.gd" id="1_beat"]
+
+[resource]
+script = ExtResource("1_beat")
+title = "The Last Train"
+text = "You wake on a bench of cold iron with a uniform you remember tearing off. Somewhere ahead, a whistle drags itself across the dark.
+
+The doors are open. Every road you ever ran down ended here. You step aboard anyway; running was never the hard part."
+button_text = "Board"

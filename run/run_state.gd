@@ -185,7 +185,7 @@ func current_beat() -> StoryBeat:
 	var stop := current_stop()
 	if stop == null or stop.type != StopType.STORY:
 		return null
-	return StoryContent.beat(stop.beat_index)
+	return StoryContent.beat(stop.beat_index, character.id)
 
 
 ## Moves past a STORY stop. Returns false if not at one.
