@@ -378,6 +378,38 @@ func _initialize() -> void:
 	pause_scene._show_stop()
 	await process_frame
 	_check(not pause_button.visible, "the Pause button is hidden on the end card")
+
+	# The pause backdrop: built for every character, animated only while shown, even with the tree paused.
+	var backdrop: PauseScene = pause_scene._pause_scene
+	_check(backdrop != null and not backdrop.is_processing() and not backdrop.is_visible_in_tree(), "the pause backdrop idles while the menu is closed")
+	var before := backdrop.time
+	backdrop.advance(1.0)
+	_check(backdrop.time == before, "advance does nothing while the backdrop is hidden")
+	for id in [&"deserter", &"pickpocket", &"medium"]:
+		pause_scene._run = RunState.new(5, id)
+		pause_scene._set_paused(true)
+		await process_frame
+		_check(backdrop.variant == id and backdrop.visible and backdrop.is_processing(), "pausing as %s shows the matching backdrop" % id)
+		_check(pause_scene.get_tree().paused, "the tree is paused while the backdrop shows")
+		var t := backdrop.time
+		await process_frame
+		_check(backdrop.time > t, "the backdrop keeps animating on its own while the tree is paused (%s)" % id)
+		var level := backdrop.lamp_level()
+		backdrop.advance(0.37)
+		_check(backdrop.time > t and backdrop.lamp_level() != level, "advance(delta) moves the animation state (%s)" % id)
+		pause_scene._set_paused(false)
+		await process_frame
+		_check(not backdrop.is_visible_in_tree() and not backdrop.is_processing(), "Continue hides the backdrop and stops its updates (%s)" % id)
+	var stopped := backdrop.time
+	await process_frame
+	_check(backdrop.time == stopped, "a hidden backdrop does not advance")
+	for odd_id in [&"", &"nobody"]:
+		pause_scene._set_paused(true)
+		backdrop.set_character(odd_id)
+		backdrop.advance(0.2)
+		await process_frame
+		_check(backdrop.variant == odd_id and backdrop.time > stopped, "an unknown character id draws the neutral scene (%s)" % odd_id)
+		pause_scene._set_paused(false)
 	pause_scene.queue_free()
 	await process_frame
 

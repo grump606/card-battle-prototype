@@ -12,7 +12,7 @@ Last updated at the end of the classes work. Everything below is on `main` and p
 
 1. **Playtest each class** and say how it feels. The numbers are tuned against bots, not people. Watch the Deserter (the skill-sensitive one) and the Medium (very HP-sensitive: 38 to 48 HP moved it from 28% to 68%).
 2. **Card rewards**: designs A and C are in (no repeats, skip gold, free once-per-run Remove and Heal). The smart bot got about 7 points easier from C; retune `REWARD_HEAL` etc. after playtesting. See `docs/REWARDS_PROPOSAL.md`.
-3. **Pause screen artwork** ("full cut scene"). Not designed yet.
+3. ~~Pause screen artwork~~ done: an animated code-drawn carriage backdrop with a per-character detail (`run/pause_scene.gd`, `docs/PAUSE_SCREEN_DESIGN.md`).
 
 ## Smaller open items
 

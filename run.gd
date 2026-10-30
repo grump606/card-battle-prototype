@@ -24,6 +24,7 @@ var _notice_shown := false
 var _pause_button: Button
 var _pause_overlay: Control
 var _pause_box: VBoxContainer
+var _pause_scene: PauseScene
 ## What "Save & Exit" calls once the save is safe; tests replace it so they do not quit.
 var exit_callable: Callable = func() -> void: get_tree().quit()
 
@@ -414,16 +415,19 @@ func _build_pause_menu() -> void:
 	_pause_overlay = Control.new()
 	_pause_overlay.visible = false
 	add_child(_pause_overlay)
-	_pause_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_pause_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var dim := ColorRect.new()
 	# Opaque, so the pause is a full screen of its own rather than a veil over the fight.
 	dim.color = Color(0.04, 0.04, 0.07)
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP # nothing underneath can be clicked
 	_pause_overlay.add_child(dim)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_pause_scene = PauseScene.new() # animated backdrop; only runs while the overlay is visible
+	_pause_overlay.add_child(_pause_scene)
+	_pause_scene.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var center := CenterContainer.new()
 	_pause_overlay.add_child(center)
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_pause_box = VBoxContainer.new()
 	_pause_box.add_theme_constant_override("separation", 12)
 	center.add_child(_pause_box)
@@ -441,6 +445,7 @@ func _set_paused(on: bool) -> void:
 	get_tree().paused = on
 	_pause_overlay.visible = on
 	if on:
+		_pause_scene.set_character(_run.character.id if _run != null and _run.character != null else &"")
 		_show_pause_options("")
 
 
