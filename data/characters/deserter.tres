@@ -7,8 +7,8 @@
 [ext_resource type="Resource" path="res://data/cards/glimpse_exit.tres" id="5_glimpse_exit"]
 [ext_resource type="Resource" path="res://data/cards/shoulder_charge.tres" id="6_shoulder_charge"]
 [ext_resource type="Resource" path="res://data/cards/iron_resolve.tres" id="7_iron_resolve"]
-[ext_resource type="Resource" path="res://data/cards/steady_breath.tres" id="8_steady_breath"]
-[ext_resource type="Resource" path="res://data/cards/heavy_blow.tres" id="9_heavy_blow"]
+[ext_resource type="Resource" path="res://data/cards/hold_the_line.tres" id="8_hold_the_line"]
+[ext_resource type="Resource" path="res://data/cards/bash.tres" id="9_bash"]
 
 [resource]
 script = ExtResource("1_char")
@@ -16,4 +16,4 @@ id = &"deserter"
 display_name = "The Deserter"
 pitch = "Walked off a battlefield. Patient and sturdy, trades blows from behind a wall of Block."
 max_hp = 54
-starting_deck = Array[ExtResource("2_card")]([ExtResource("3_shove"), ExtResource("3_shove"), ExtResource("3_shove"), ExtResource("4_slip_past"), ExtResource("4_slip_past"), ExtResource("5_glimpse_exit"), ExtResource("6_shoulder_charge"), ExtResource("7_iron_resolve"), ExtResource("8_steady_breath"), ExtResource("9_heavy_blow")])
+starting_deck = Array[ExtResource("2_card")]([ExtResource("3_shove"), ExtResource("3_shove"), ExtResource("3_shove"), ExtResource("4_slip_past"), ExtResource("4_slip_past"), ExtResource("5_glimpse_exit"), ExtResource("6_shoulder_charge"), ExtResource("7_iron_resolve"), ExtResource("8_hold_the_line"), ExtResource("9_bash")])

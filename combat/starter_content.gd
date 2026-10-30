@@ -21,6 +21,12 @@ const HAMSTRING_PATH := "res://data/cards/hamstring.tres"
 const IRON_RESOLVE_PATH := "res://data/cards/iron_resolve.tres"
 const FLURRY_PATH := "res://data/cards/flurry.tres"
 const GUARDED_STRIKE_PATH := "res://data/cards/guarded_strike.tres"
+const HOLD_THE_LINE_PATH := "res://data/cards/hold_the_line.tres"
+const BASH_PATH := "res://data/cards/bash.tres"
+const DIG_IN_PATH := "res://data/cards/dig_in.tres"
+const COLD_STEEL_PATH := "res://data/cards/cold_steel.tres"
+const COUNTER_STANCE_PATH := "res://data/cards/counter_stance.tres"
+const LAST_STAND_PATH := "res://data/cards/last_stand.tres"
 const CINDER_HOUND_PATH := "res://data/enemies/cinder_hound.tres"
 const MOURNING_CROW_PATH := "res://data/enemies/mourning_crow.tres"
 const WISP_PATH := "res://data/enemies/skittering_wisp.tres"
@@ -33,6 +39,7 @@ const EXTENDED_DECK_SIZE := 14
 const ALL_CARD_PATHS: Array[String] = [
 	SHOVE_PATH, SLIP_PAST_PATH, GLIMPSE_EXIT_PATH, BRACE_PATH, FLURRY_PATH, SWEEP_PATH,
 	HEAVY_BLOW_PATH, STEADY_BREATH_PATH, SHOULDER_CHARGE_PATH, IRON_RESOLVE_PATH, GUARDED_STRIKE_PATH,
+	HOLD_THE_LINE_PATH, BASH_PATH, DIG_IN_PATH, COLD_STEEL_PATH, COUNTER_STANCE_PATH, LAST_STAND_PATH,
 	MARK_THE_WEAK_PATH, CUTTING_WORD_PATH, HAMSTRING_PATH, SECOND_WIND_PATH,
 ]
 ## Playable characters, in the order a selection screen lists them.

@@ -148,8 +148,15 @@ func _play_hand_card(hand_index: int) -> void:
 
 
 func _status_tooltip(combatant: Combatant) -> String:
+	var lines: Array[String] = []
 	var exposed := combatant.status_turns(Combatant.Status.EXPOSED)
-	return EXPOSED_TOOLTIP % exposed if exposed > 0 else ""
+	if exposed > 0:
+		lines.append(EXPOSED_TOOLTIP % exposed)
+	if combatant.hold > 0:
+		lines.append("Hold %d: up to %d of the Block you have left is kept for your next turn." % [combatant.hold, combatant.hold])
+	if combatant.thorns > 0:
+		lines.append("Thorns %d: each enemy attack on you also deals %d to the attacker this turn." % [combatant.thorns, combatant.thorns])
+	return "\n".join(lines)
 
 
 ## DISPLAY-ONLY preview of damage on the selected enemy: Exposed scaling comes
@@ -188,8 +195,15 @@ func _damage_preview(card: CardData) -> String:
 
 
 func _status_text(combatant: Combatant) -> String:
+	var text := ""
 	var exposed := combatant.status_turns(Combatant.Status.EXPOSED)
-	return "  Exposed %d" % exposed if exposed > 0 else ""
+	if exposed > 0:
+		text += "  Exposed %d" % exposed
+	if combatant.hold > 0:
+		text += "  Hold %d" % combatant.hold
+	if combatant.thorns > 0:
+		text += "  Thorns %d" % combatant.thorns
+	return text
 
 
 ## Single-target cards use the selected enemy, so only the other modes get a tag.

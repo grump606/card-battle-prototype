@@ -1,6 +1,6 @@
 # Classes build plan
 
-Three playable characters (Deserter, Pickpocket, Medium), each with a class card pool, sharing a neutral pool. Status: Phases 1 (character infrastructure, existing cards only) and 2 (character select screen) done; Phases 3 to 7 not started. Card numbers are first drafts for the sim to tune.
+Three playable characters (Deserter, Pickpocket, Medium), each with a class card pool, sharing a neutral pool. Status: Phases 1 (character infrastructure), 2 (character select screen) and 3 (Deserter mechanics and cards) done; Phases 4 to 7 not started. After Phase 3 the greedy bot escapes 81% of Deserter runs (smart 96%): the Deserter is far too easy until the Phase 6 retune. Card numbers are first drafts for the sim to tune.
 
 ## Decisions assumed (change any before Phase 1)
 

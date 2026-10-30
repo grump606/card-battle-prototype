@@ -5,16 +5,26 @@ extends Resource
 ## SELF cards); on an enemy intent it exposes the player for the next `amount`
 ## enemy phases.
 
-enum Kind { DAMAGE, BLOCK, DRAW, EXPOSE }
+## New kinds are only ever appended: .tres files store the kind as its integer value.
+## HOLD: keep up to `amount` of your remaining Block into your next turn.
+## DAMAGE_PER_BLOCK: damage equal to your current Block times `amount`.
+## DAMAGE_IF_BLOCK: `bonus` damage if your Block is at least `threshold`, else `amount`.
+## THORNS: until your next turn, each enemy attack on you also deals `amount` to that attacker.
+enum Kind { DAMAGE, BLOCK, DRAW, EXPOSE, HOLD, DAMAGE_PER_BLOCK, DAMAGE_IF_BLOCK, THORNS }
 
 @export var kind: Kind = Kind.DAMAGE
 @export var amount: int = 0
+## Second number for kinds that need one (see DAMAGE_IF_BLOCK); 0 otherwise.
+@export var bonus: int = 0
+@export var threshold: int = 0
 
 
-static func make(effect_kind: Kind, effect_amount: int) -> CardEffect:
+static func make(effect_kind: Kind, effect_amount: int, effect_bonus: int = 0, effect_threshold: int = 0) -> CardEffect:
 	var effect := CardEffect.new()
 	effect.kind = effect_kind
 	effect.amount = effect_amount
+	effect.bonus = effect_bonus
+	effect.threshold = effect_threshold
 	return effect
 
 
@@ -28,4 +38,12 @@ func describe() -> String:
 			return "Draw %d" % amount
 		Kind.EXPOSE:
 			return "Expose %d" % amount
+		Kind.HOLD:
+			return "Hold %d" % amount
+		Kind.DAMAGE_PER_BLOCK:
+			return "Deal damage equal to your Block" if amount == 1 else "Deal %dx your Block" % amount
+		Kind.DAMAGE_IF_BLOCK:
+			return "Deal %d (%d with %d+ Block)" % [amount, bonus, threshold]
+		Kind.THORNS:
+			return "Thorns %d" % amount
 	return ""

@@ -15,6 +15,11 @@ var display_name: String
 var max_hp: int
 var hp: int
 var block: int = 0
+## Block (up to this much) that survives into the next turn; set by HOLD effects, used and reset when
+## the next turn starts.
+var hold: int = 0
+## Damage each enemy attack on this combatant also deals to the attacker; lasts until the next turn.
+var thorns: int = 0
 
 var _statuses: Dictionary = {}  # Status -> remaining turns (always > 0)
 
@@ -36,6 +41,25 @@ func gain_block(amount: int) -> void:
 
 func clear_block() -> void:
 	block = 0
+	changed.emit()
+
+
+func add_hold(amount: int) -> void:
+	hold += maxi(amount, 0)
+	changed.emit()
+
+
+func add_thorns(amount: int) -> void:
+	thorns += maxi(amount, 0)
+	changed.emit()
+
+
+## Starts a turn: Block drops to whatever Hold kept (never more than the Block left), and the
+## turn-long Hold and Thorns reset.
+func start_turn_block() -> void:
+	block = mini(hold, block)
+	hold = 0
+	thorns = 0
 	changed.emit()
 
 
@@ -61,8 +85,11 @@ func apply_status(status: Status, turns: int) -> void:
 	changed.emit()
 
 
+## Also drops Hold and Thorns: they are per-fight like statuses.
 func clear_statuses() -> void:
 	_statuses.clear()
+	hold = 0
+	thorns = 0
 	changed.emit()
 
 

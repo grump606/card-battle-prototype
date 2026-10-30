@@ -134,7 +134,7 @@ func play_card(hand_index: int, target_index: int = -1) -> bool:
 	plays_this_turn += 1
 	for effect in card.effects:
 		match effect.kind:
-			CardEffect.Kind.DAMAGE:
+			CardEffect.Kind.DAMAGE, CardEffect.Kind.DAMAGE_PER_BLOCK, CardEffect.Kind.DAMAGE_IF_BLOCK:
 				for target in targets:
 					_apply(effect, player, target)
 			CardEffect.Kind.EXPOSE:
@@ -192,7 +192,7 @@ func _begin_player_turn() -> void:
 	phase = Phase.PLAYER_TURN
 	energy = ENERGY_PER_TURN
 	plays_this_turn = 0
-	player.clear_block()
+	player.start_turn_block()
 	piles.draw(HAND_SIZE)
 	state_changed.emit()
 
@@ -204,6 +204,17 @@ func _apply(effect: CardEffect, source: Combatant, target: Combatant) -> void:
 	match effect.kind:
 		CardEffect.Kind.DAMAGE:
 			target.take_damage(effect.amount)
+			# Thorns: an enemy attack on the player also hurts the attacker.
+			if target == player and source != player and player.thorns > 0:
+				source.take_damage(player.thorns)
+		CardEffect.Kind.DAMAGE_PER_BLOCK:
+			target.take_damage(source.block * effect.amount)
+		CardEffect.Kind.DAMAGE_IF_BLOCK:
+			target.take_damage(effect.bonus if source.block >= effect.threshold else effect.amount)
+		CardEffect.Kind.HOLD:
+			source.add_hold(effect.amount)
+		CardEffect.Kind.THORNS:
+			source.add_thorns(effect.amount)
 		CardEffect.Kind.BLOCK:
 			source.gain_block(effect.amount)
 		CardEffect.Kind.DRAW:
