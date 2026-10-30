@@ -25,8 +25,10 @@ grow_vertical = 2
 
 [node name="EnemyRow" type="HBoxContainer" parent="Layout"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 90)
+custom_minimum_size = Vector2(0, 164)
 layout_mode = 2
+theme_override_constants/separation = 14
+alignment = 1
 
 [node name="LogLabel" type="RichTextLabel" parent="Layout"]
 unique_name_in_owner = true

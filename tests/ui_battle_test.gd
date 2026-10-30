@@ -89,8 +89,9 @@ func _initialize() -> void:
 	c.enemies[0].apply_status(Combatant.Status.EXPOSED, 2)
 	c.player.apply_status(Combatant.Status.EXPOSED, 3)
 	check(node._player_label.tooltip_text == "Takes 1.5x damage, rounded down, for 3 more turns.", "player tooltip: " + node._player_label.tooltip_text)
-	check(node._enemy_row.get_child(0).tooltip_text.contains("2 more turns"), "enemy tooltip")
-	check(node._enemy_row.get_child(1).tooltip_text == "", "no tooltip unexposed")
+	var enemy_views := EnemyView.find_all(node._enemy_row)
+	check(enemy_views.size() == 3 and enemy_views[0].tooltip_text.contains("2 more turns"), "enemy tooltip")
+	check(enemy_views[1].tooltip_text == "", "no tooltip unexposed")
 	var all_txt := ""
 	for b in node._hand_box.get_children():
 		all_txt += (b as CardView).preview + "\n---\n"

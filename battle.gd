@@ -34,6 +34,8 @@ var _combat: Combat
 var _victory := false
 ## Index into Combat.enemies that cards will target.
 var _target_index: int = 0
+## One view per enemy of the current fight, in Combat.enemies order.
+var _enemy_views: Array[EnemyView] = []
 
 
 func _ready() -> void:
@@ -84,7 +86,7 @@ func _refresh() -> void:
 	_energy_label.text = "Energy %d/%d" % [_combat.energy, Combat.ENERGY_PER_TURN]
 	_pile_label.text = "Draw %d | Discard %d" % [_combat.piles.draw_pile.size(), _combat.piles.discard_pile.size()]
 	_keep_target_alive()
-	_rebuild_enemies()
+	_sync_enemies()
 	_rebuild_hand()
 	_end_turn_button.disabled = _combat.phase != Combat.Phase.PLAYER_TURN
 
@@ -98,29 +100,30 @@ func _keep_target_alive() -> void:
 				return
 
 
-func _rebuild_enemies() -> void:
-	for child in _enemy_row.get_children():
-		_discard_node(child)
-	for i in _combat.enemies.size():
+## Keeps one EnemyView per enemy of the current fight (so their animations survive a refresh) and
+## updates each from its unit. The row centers them; a dead enemy shows as defeated and cannot be clicked.
+func _sync_enemies() -> void:
+	var same := _enemy_views.size() == _combat.enemies.size()
+	if same:
+		for i in _enemy_views.size():
+			same = same and _enemy_views[i].unit == _combat.enemies[i]
+	if not same:
+		for child in _enemy_row.get_children():
+			_discard_node(child)
+		_enemy_views.clear()
+		for i in _combat.enemies.size():
+			var view := EnemyView.new()
+			view.phase = i * 1.9
+			view.set_enemy(_combat.enemies[i])
+			view.pressed.connect(_select_target.bind(i))
+			_enemy_row.add_child(view)
+			_enemy_views.append(view)
+	for i in _enemy_views.size():
 		var enemy := _combat.enemies[i]
-		var button := Button.new()
-		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		if enemy.is_dead():
-			button.text = "%s\nDefeated" % enemy.display_name
-			button.disabled = true
-			button.modulate = Color(0.5, 0.5, 0.5, 0.6)
-		else:
-			var intent := enemy.current_intent()
-			var marker := "> " if i == _target_index else ""
-			button.text = "%s%s\nHP %d/%d  Block %d%s\nIntent: %s" % [
-				marker, enemy.display_name, enemy.hp, enemy.max_hp, enemy.block, _status_text(enemy),
-				intent.describe() if intent != null else "-",
-			]
-			button.tooltip_text = _status_tooltip(enemy)
-			button.pressed.connect(_select_target.bind(i))
-			if i == _target_index:
-				button.modulate = Color(1.0, 0.85, 0.4)
-		_enemy_row.add_child(button)
+		var view := _enemy_views[i]
+		view.set_targeted(i == _target_index and not enemy.is_dead())
+		view.tooltip_text = "" if enemy.is_dead() else _status_tooltip(enemy)
+		view.refresh()
 
 
 func _rebuild_hand() -> void:
@@ -327,3 +330,6 @@ func _on_card_played(card: CardData, targets: Array[EnemyUnit]) -> void:
 
 func _on_enemy_acted(enemy: EnemyUnit, intent: CardEffect) -> void:
 	_log_label.append_text("%s: %s\n" % [enemy.display_name, intent.describe()])
+	var index := _combat.enemies.find(enemy)
+	if intent.is_damage() and index >= 0 and index < _enemy_views.size():
+		_enemy_views[index].play_attack()
