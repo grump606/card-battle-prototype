@@ -59,6 +59,19 @@ func _initialize() -> void:
 	await process_frame
 	var body: Control = scene.get_node("%Body")
 	var header: Label = scene.get_node("%HeaderLabel")
+
+	# A new game starts on the character select screen.
+	_check(scene._run == null and header.text.contains("Choose your passenger"), "a new game opens on the character select screen")
+	_check(not scene._pause_button.visible, "no Pause button on the select screen")
+	_check(_count_buttons(body, "Play as") == 3, "the select screen offers three characters")
+	var select_text := _all_text(body)
+	for id in StarterContent.character_ids():
+		var character := StarterContent.character(id)
+		_check(select_text.contains(character.display_name) and select_text.contains("%d HP" % character.max_hp) and select_text.contains(character.pitch), "the select screen shows %s with HP and pitch" % id)
+	_check(select_text.contains("3 Shove") and select_text.contains("Starting deck"), "the select screen shows each starting deck")
+	_find(body, "Play as The Deserter").pressed.emit()
+	await process_frame
+	_check(scene._run != null and scene._run.character.id == &"deserter" and scene._run.stop_index == 0, "picking the Deserter starts a Deserter run")
 	var run_state: RunState = scene._run
 
 	var fights_ended := 0
@@ -160,9 +173,13 @@ func _initialize() -> void:
 	_check(win_text.contains("Outcome: Escaped") and win_text.contains("Stops cleared: 12/12"), "the win summary shows outcome and stops cleared")
 	_check(win_text.contains("Final HP: %d/%d" % [run_state.player.hp, run_state.player.max_hp]), "the win summary shows final HP")
 	_check(win_text.contains("Deck: %d cards" % run_state.deck.size()) and win_text.contains("Gold: %d" % run_state.gold), "the win summary shows deck size and gold")
-	scene._new_run()
+	_find(body, "New Run").pressed.emit()
 	await process_frame
-	_check(scene._run.stop_index == 0 and not scene._run.finished and scene._run.gold == 0, "New Run starts a fresh run")
+	_check(_count_buttons(body, "Play as") == 3 and header.text.contains("Choose your passenger"), "New Run on the end card opens the select screen")
+	_find(body, "Play as The Pickpocket").pressed.emit()
+	await process_frame
+	_check(scene._run.character.id == &"pickpocket" and scene._run.player.max_hp == 44 and scene._run.player.display_name == "The Pickpocket", "picking the Pickpocket starts a Pickpocket run")
+	_check(scene._run.stop_index == 0 and not scene._run.finished and scene._run.gold == 0, "a character pick starts a fresh run")
 	_check(body.get_child_count() == 1, "New Run leaves exactly one panel in the body")
 	_check(FileAccess.file_exists(test_save), "a new run is saved at its first stop")
 
@@ -201,6 +218,22 @@ func _initialize() -> void:
 	resumed_scene.queue_free()
 	await process_frame
 
+	# Every character can be picked, and the header then shows who is playing.
+	for id in StarterContent.character_ids():
+		var character := StarterContent.character(id)
+		RunSave.delete(test_save)
+		var pick_scene: Control = load("res://run.tscn").instantiate()
+		pick_scene.save_path = test_save
+		root.add_child(pick_scene)
+		await process_frame
+		_find(pick_scene.get_node("%Body"), "Play as %s" % character.display_name).pressed.emit()
+		await process_frame
+		var shown := (pick_scene.get_node("%HeaderLabel") as Label).text
+		_check(shown.contains(character.display_name) and shown.contains("HP %d/%d" % [character.max_hp, character.max_hp]), "the header shows %s and its HP" % id)
+		_check(pick_scene._run.deck.size() == 10 and pick_scene.get_node("%Body").get_child_count() == 1, "%s starts a run with a ten-card deck and one panel" % id)
+		pick_scene.queue_free()
+		await process_frame
+
 	# A corrupt save falls back to a new run with a visible message.
 	var bad := FileAccess.open(test_save, FileAccess.WRITE)
 	bad.store_string("{ not json")
@@ -209,7 +242,7 @@ func _initialize() -> void:
 	bad_scene.save_path = test_save
 	root.add_child(bad_scene)
 	await process_frame
-	_check(bad_scene._run != null and bad_scene._run.stop_index == 0, "a corrupt save starts a new run")
+	_check(bad_scene._run == null and _count_buttons(bad_scene.get_node("%Body"), "Play as") == 3, "a corrupt save falls back to the select screen")
 	_check((bad_scene.get_node("%HeaderLabel") as Label).text.contains("could not be loaded"), "a corrupt save shows a message")
 	bad_scene.queue_free()
 	await process_frame
@@ -222,6 +255,9 @@ func _initialize() -> void:
 	pause_scene.exit_callable = func() -> void: exits[0] += 1
 	root.add_child(pause_scene)
 	await process_frame
+	_find(pause_scene.get_node("%Body"), "Play as The Medium").pressed.emit()
+	await process_frame
+	_check(pause_scene._run.character.id == &"medium", "setup: playing as the Medium")
 	var pause_button: Button = pause_scene._pause_button
 	var overlay: Control = pause_scene._pause_overlay
 	_check(pause_button.visible and not overlay.visible, "a running run shows the Pause button and a closed menu")
@@ -284,7 +320,10 @@ func _initialize() -> void:
 	await process_frame
 	_find(pause_scene._pause_box, "Yes").pressed.emit()
 	await process_frame
-	_check(not overlay.visible and not pause_scene.get_tree().paused and pause_scene._run.stop_index == 0, "confirming starts a fresh run and closes the menu")
+	_check(not overlay.visible and not pause_scene.get_tree().paused and _count_buttons(pause_scene.get_node("%Body"), "Play as") == 3, "confirming closes the menu and opens the select screen")
+	_find(pause_scene.get_node("%Body"), "Play as The Deserter").pressed.emit()
+	await process_frame
+	_check(pause_scene._run.stop_index == 0 and pause_scene._run.character.id == &"deserter", "picking a character after abandoning starts a fresh run")
 
 	# No Pause button once the run is over.
 	var done := RunState.new(4)
@@ -304,3 +343,13 @@ func _initialize() -> void:
 
 func _set_paused_off(scene: Control) -> void:
 	scene._set_paused(false)
+
+
+func _count_buttons(node: Node, prefix: String) -> int:
+	var found: Array = []
+	_buttons(node, found)
+	var count := 0
+	for button in found:
+		if (button as Button).text.begins_with(prefix):
+			count += 1
+	return count

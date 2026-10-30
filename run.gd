@@ -57,11 +57,73 @@ func _continue_run(saved: RunState) -> void:
 	_show_stop()
 
 
+## Every route to a new run goes through here: pick who boards the train, then `_start_run`.
 func _new_run() -> void:
-	_run = RunState.new(randi())
+	_pause_button.visible = false
+	_clear_body()
+	var prefix := _notice + "
+" if _notice != "" else ""
+	_header.text = prefix + "Choose your passenger"
+	_notice_shown = _notice != ""
+	var center := CenterContainer.new()
+	_body.add_child(center)
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 24)
+	center.add_child(row)
+	for id in StarterContent.character_ids():
+		var character := StarterContent.character(id)
+		if character != null:
+			row.add_child(_character_card(character))
+	if row.get_child_count() == 0:
+		row.add_child(_label("No characters could be loaded (content failed to load). See the Output log."))
+
+
+func _start_run(character_id: StringName) -> void:
+	_run = RunState.new(randi(), character_id)
 	_vendor_message = ""
 	_removing = false
 	_show_stop()
+
+
+## One column of the select screen: name, HP, pitch, starting deck and a button to pick them.
+func _character_card(character: Character) -> VBoxContainer:
+	var card := VBoxContainer.new()
+	card.custom_minimum_size = Vector2(260, 0)
+	card.add_theme_constant_override("separation", 10)
+	var name_label := _label(character.display_name)
+	name_label.add_theme_font_size_override("font_size", 24)
+	card.add_child(name_label)
+	card.add_child(_label("%d HP" % character.max_hp))
+	var pitch := _label(character.pitch)
+	pitch.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	card.add_child(pitch)
+	card.add_child(_label("Starting deck:
+%s" % _deck_summary(character.starting_deck)))
+	_add_button(card, "Play as %s" % character.display_name, _start_run.bind(character.id))
+	return card
+
+
+## "3 Shove, 2 Slip Past, ..." in first-seen order.
+func _deck_summary(cards: Array[CardData]) -> String:
+	var counts := {}
+	var order: Array[String] = []
+	for card in cards:
+		if not counts.has(card.display_name):
+			order.append(card.display_name)
+		counts[card.display_name] = counts.get(card.display_name, 0) + 1
+	var parts: Array[String] = []
+	for card_name in order:
+		parts.append("%d %s" % [counts[card_name], card_name])
+	return "
+".join(parts)
+
+
+func _label(text: String) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	return label
 
 
 func _show_stop() -> void:
