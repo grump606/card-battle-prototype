@@ -166,27 +166,40 @@ func _status_tooltip(combatant: Combatant) -> String:
 ## from Combatant.damage_after_status, then block is subtracted per hit as
 ## take_damage does. The result of an actual play is authoritative.
 func _damage_preview(card: CardData) -> String:
-	var base := 0
-	var hits: Array[int] = []
+	var damage_effects: Array[CardEffect] = []
 	for effect in card.effects:
-		if effect.kind == CardEffect.Kind.DAMAGE:
-			base += effect.amount
-			hits.append(effect.amount)
-	if hits.is_empty():
+		if effect.is_damage():
+			damage_effects.append(effect)
+	if damage_effects.is_empty():
 		return ""
+	var block: int = _combat.player.block
+	# The card being played will count as one more play this turn.
+	var plays: int = _combat.plays_this_turn + 1
 	if card.target_mode == CardData.TargetMode.ALL_ENEMIES:
-		return "\nDeals %d (x%d enemies)" % [base, _combat.living_enemies().size()]
+		# Haunt differs per enemy, so a per-Haunt hit has no single number.
+		var all_base := 0
+		for effect in damage_effects:
+			if effect.kind == CardEffect.Kind.DAMAGE_PER_HAUNT:
+				return ""
+			all_base += effect.raw_damage(block, 0, plays)
+		return "\nDeals %d (x%d enemies)" % [all_base, _combat.living_enemies().size()]
 	var target := _combat.enemies[_target_index]
 	if card.target_mode != CardData.TargetMode.SINGLE_ENEMY or target.is_dead():
 		return ""
+	var base := 0
+	var hits: Array[int] = []
+	for effect in damage_effects:
+		var raw := effect.raw_damage(block, target.status_turns(Combatant.Status.HAUNTED), plays)
+		base += raw
+		hits.append(raw)
 	var exposed := target.status_turns(Combatant.Status.EXPOSED) > 0
-	var block := target.block
+	var target_block := target.block
 	var dealt := 0
 	var lost := 0
 	for hit in hits:
 		var amount := target.damage_after_status(hit)
-		var absorbed := mini(block, amount)
-		block -= absorbed
+		var absorbed := mini(target_block, amount)
+		target_block -= absorbed
 		dealt += amount
 		lost += amount - absorbed
 	var text := "\nDeals %d" % dealt

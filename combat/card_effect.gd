@@ -36,6 +36,29 @@ static func make(effect_kind: Kind, effect_amount: int, effect_bonus: int = 0, e
 	return effect
 
 
+## True for the kinds that hit a target for `raw_damage`.
+func is_damage() -> bool:
+	return kind in [Kind.DAMAGE, Kind.DAMAGE_PER_BLOCK, Kind.DAMAGE_IF_BLOCK, Kind.DAMAGE_PER_PLAY, Kind.DAMAGE_PER_HAUNT]
+
+
+## Damage of one hit before Expose and Block (0 for a non-damage kind). Pure, so the
+## battle preview and Combat share one rule. `plays_including_this` counts the card
+## being played, as Combat.plays_this_turn does during resolution.
+func raw_damage(source_block: int, target_haunt: int, plays_including_this: int) -> int:
+	match kind:
+		Kind.DAMAGE:
+			return amount
+		Kind.DAMAGE_PER_BLOCK:
+			return source_block * amount
+		Kind.DAMAGE_IF_BLOCK:
+			return bonus if source_block >= threshold else amount
+		Kind.DAMAGE_PER_PLAY:
+			return amount + bonus * maxi(plays_including_this - 1, 0)
+		Kind.DAMAGE_PER_HAUNT:
+			return target_haunt * amount
+	return 0
+
+
 func describe() -> String:
 	match kind:
 		Kind.DAMAGE:

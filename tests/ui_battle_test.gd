@@ -18,6 +18,43 @@ func key(node: Node, code: int, shift := false) -> void:
 	e.shift_pressed = shift
 	node._unhandled_key_input(e)
 
+## For each card with a state-dependent hit, the hand-button preview must equal the
+## damage the real play deals, across plain, Blocked and Exposed targets.
+func _check_preview_matches_damage(node: Control, combat: Combat) -> void:
+	node._select_target(0)
+	var cards := ["bash", "cold_steel", "last_pocket", "spree", "reckoning"]
+	# [player block, plays already made this turn, target haunt, target block, exposed]
+	var setups := [[0, 0, 0, 0, false], [4, 2, 3, 0, false], [12, 3, 5, 0, false], [12, 3, 5, 3, false], [4, 2, 3, 0, true]]
+	for id in cards:
+		for setup in setups:
+			var card: CardData = load("res://data/cards/%s.tres" % id)
+			var label := "%s %s" % [id, str(setup)]
+			combat.player.clear_block()
+			combat.player.gain_block(setup[0])
+			combat.plays_this_turn = setup[1]
+			combat.energy = 9
+			var target: EnemyUnit = combat.enemies[0]
+			target.clear_statuses()
+			target.clear_block()
+			target.max_hp = 500
+			target.hp = 500
+			if setup[2] > 0:
+				target.apply_status(Combatant.Status.HAUNTED, setup[2])
+			target.gain_block(setup[3])
+			if setup[4]:
+				target.apply_status(Combatant.Status.EXPOSED, 2)
+			combat.piles.hand.clear()
+			combat.piles.hand.append(card)
+			node._rebuild_hand()
+			var text: String = node._hand_box.get_child(0).text
+			var dealt_to_block := target.block
+			combat.play_card(0, 0)
+			var lost: int = 500 - target.hp
+			var expected := "%d after Block" % lost if dealt_to_block > 0 else ("(%d vs Exposed)" % lost if setup[4] else "Deals %d" % lost)
+			check(text.contains(expected), "preview matches damage: %s lost %d in %s" % [label, lost, text.replace("\n", " | ")])
+			combat.piles.hand.clear()
+
+
 func _initialize() -> void:
 	var node: Control = (load("res://battle.tscn") as PackedScene).instantiate()
 	root.add_child(node)
@@ -100,6 +137,7 @@ func _initialize() -> void:
 	key(node, KEY_N)
 	check(node._combat != c and node._combat.phase == Combat.Phase.PLAYER_TURN and not node._new_fight_button.visible, "N new fight")
 	var c2: Combat = node._combat
+	_check_preview_matches_damage(node, c2)
 	c2.phase = Combat.Phase.ENEMY_TURN
 	var h := c2.piles.hand.size()
 	key(node, KEY_1)

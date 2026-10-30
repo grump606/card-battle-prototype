@@ -222,10 +222,9 @@ func _apply(effect: CardEffect, source: Combatant, target: Combatant) -> void:
 			# Thorns: an enemy attack on the player also hurts the attacker.
 			if target == player and source != player and player.thorns > 0:
 				source.take_damage(player.thorns)
-		CardEffect.Kind.DAMAGE_PER_BLOCK:
-			target.take_damage(source.block * effect.amount)
-		CardEffect.Kind.DAMAGE_IF_BLOCK:
-			target.take_damage(effect.bonus if source.block >= effect.threshold else effect.amount)
+		CardEffect.Kind.DAMAGE_PER_BLOCK, CardEffect.Kind.DAMAGE_IF_BLOCK, CardEffect.Kind.DAMAGE_PER_PLAY, CardEffect.Kind.DAMAGE_PER_HAUNT:
+			# plays_this_turn already counts the card being played.
+			target.take_damage(effect.raw_damage(source.block, target.status_turns(Combatant.Status.HAUNTED), plays_this_turn))
 		CardEffect.Kind.HOLD:
 			source.add_hold(effect.amount)
 		CardEffect.Kind.THORNS:
@@ -233,9 +232,6 @@ func _apply(effect: CardEffect, source: Combatant, target: Combatant) -> void:
 		CardEffect.Kind.GAIN_ENERGY:
 			if source == player:
 				energy += maxi(effect.amount, 0)
-		CardEffect.Kind.DAMAGE_PER_PLAY:
-			# plays_this_turn already counts the card being played.
-			target.take_damage(effect.amount + effect.bonus * maxi(plays_this_turn - 1, 0))
 		CardEffect.Kind.HAUNT:
 			if source == player:
 				target.apply_status(Combatant.Status.HAUNTED, effect.amount)
@@ -243,8 +239,6 @@ func _apply(effect: CardEffect, source: Combatant, target: Combatant) -> void:
 			source.lose_hp(effect.amount)
 		CardEffect.Kind.HEAL_PER_HAUNTED:
 			source.heal(effect.amount * _haunted_count())
-		CardEffect.Kind.DAMAGE_PER_HAUNT:
-			target.take_damage(target.status_turns(Combatant.Status.HAUNTED) * effect.amount)
 		CardEffect.Kind.BLOCK:
 			source.gain_block(effect.amount)
 		CardEffect.Kind.DRAW:
