@@ -65,3 +65,16 @@ Test strategy: run `scripts/check.ps1`, then compare escape rates before and aft
 6. Do you want rerolls or a "choose class or neutral" toggle?
 7. Should the boss pay anything (currently nothing, by design: no later stop to spend it)?
 8. Should elites or a branching map (listed as bigger ideas) drive better rewards later, and should this design leave room for them?
+
+## Decisions (recorded from the owner's go-ahead on the recommended answers)
+
+1. Goal: fewer dead offers. Do design A first, then C; defer B.
+2. Duplicates: never re-offer a card already offered earlier this run, and never offer one the deck holds twice. The copy cap is a constant.
+3. Skipping pays gold: `SKIP_GOLD = 10`.
+4. Free remove or heal at rewards (design C): at most once per run each, after A ships; retune against the sim.
+5. No rarity or upgrades for now.
+6. No rerolls and no class/neutral toggle.
+7. The boss keeps paying nothing.
+8. Keep the reward roll a function of pool and context so elites can reuse it later; build nothing for them now.
+
+Status: design A implemented; C not started.

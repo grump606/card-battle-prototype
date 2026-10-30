@@ -195,7 +195,7 @@ func _show_reward() -> void:
 	for card in _run.reward_choices():
 		var button := _add_button(box, "%s (%d)\n%s" % [card.display_name, card.cost, card.describe()], _take_reward.bind(card))
 		button.custom_minimum_size = Vector2(260, 56)
-	_add_button(box, "Skip", _take_reward.bind(null))
+	_add_button(box, "Skip (+%d gold)" % RunState.SKIP_GOLD, _take_reward.bind(null))
 
 
 func _take_reward(card: CardData) -> void:

@@ -28,6 +28,7 @@ func run() -> int:
 	_test_rewards_rolled_eagerly_and_copied()
 	_test_survivors_from_mutation_audit()
 	_test_boss_stop()
+	_test_reward_memory_and_skip_gold()
 	return _failures
 
 
@@ -127,6 +128,89 @@ func _test_reward_flow() -> void:
 	skipper.complete_combat(true)
 	var size := skipper.deck.size()
 	_check(skipper.resolve_reward(null) and skipper.deck.size() == size and skipper.stop_index == 2, "skipping adds nothing and moves on")
+
+
+## Rolls a reward on a fresh run's pending state and returns the offered ids.
+func _offer_ids(state: RunState) -> Array:
+	var ids: Array = []
+	for card in state.reward_choices():
+		ids.append(card.id)
+	return ids
+
+
+func _test_reward_memory_and_skip_gold() -> void:
+	# No card repeats across successive rewards while the pool can supply fresh ones, and the
+	# whole sequence is the same for the same seed.
+	for id in StarterContent.character_ids():
+		var state := RunState.new(77, id)
+		var seen := {}
+		var repeats := 0
+		var sequence: Array = []
+		for roll in 3:
+			state._roll_rewards()
+			var offer := _offer_ids(state)
+			sequence.append(offer)
+			for card_id in offer:
+				if seen.has(card_id):
+					repeats += 1
+				seen[card_id] = true
+		_check(repeats == 0, "%s: three successive rewards share no card" % id)
+		_check(state.offered_ids.size() == seen.size(), "%s: every shown card is remembered" % id)
+		var again := RunState.new(77, id)
+		var again_sequence: Array = []
+		for roll in 3:
+			again._roll_rewards()
+			again_sequence.append(_offer_ids(again))
+		_check(sequence == again_sequence, "%s: the reward sequence is deterministic per seed" % id)
+
+	# A card held COPY_CAP times is not offered while others are available.
+	var capped := RunState.new(5)
+	var pool := StarterContent.reward_pool(capped.character.id)
+	var held: CardData = null
+	for card in pool:
+		if card.character != &"":
+			held = card
+			break
+	for i in RunState.COPY_CAP:
+		capped.deck.append(held)
+	var cap_ok := true
+	for roll in 12:
+		capped.offered_ids.clear()
+		capped._roll_rewards()
+		cap_ok = cap_ok and not _offer_ids(capped).has(held.id)
+	_check(cap_ok, "a card held COPY_CAP times is never offered")
+
+	# Small pool: everything already offered is let back in, then the copy cap is relaxed,
+	# and the offer is never empty.
+	var small := RunState.new(9)
+	for card in StarterContent.reward_pool(small.character.id):
+		small.offered_ids.append(card.id)
+	small._roll_rewards()
+	_check(small.reward_choices().size() == RunState.REWARD_CHOICES, "when every card was offered before, the offer is still full")
+	var tight := RunState.new(9)
+	var distinct := {}
+	for card in StarterContent.reward_pool(tight.character.id):
+		distinct[card.id] = card
+	for card_id in distinct:
+		tight.offered_ids.append(card_id)
+		for i in RunState.COPY_CAP:
+			tight.deck.append(distinct[card_id])
+	tight._roll_rewards()
+	_check(tight.reward_choices().size() == RunState.REWARD_CHOICES, "when every card is also at the copy cap, the offer is still full")
+
+	# Skipping pays SKIP_GOLD on top of the win gold, adds nothing and advances; taking pays none.
+	var skipper := _at_first_fight(5)
+	skipper.complete_combat(true)
+	var gold_before := skipper.gold
+	var size := skipper.deck.size()
+	_check(skipper.resolve_reward(null), "skip is accepted")
+	_check(skipper.gold == gold_before + RunState.SKIP_GOLD and skipper.deck.size() == size and skipper.stop_index == 2, "skipping pays SKIP_GOLD, adds nothing and advances")
+	var taker := _at_first_fight(5)
+	taker.complete_combat(true)
+	var taker_gold := taker.gold
+	taker.resolve_reward(taker.reward_choices()[0])
+	_check(taker.gold == taker_gold, "taking a card pays no skip gold")
+	_check(not skipper.resolve_reward(null) and skipper.gold == gold_before + RunState.SKIP_GOLD, "a second skip pays nothing")
 
 
 func _test_rest() -> void:
@@ -254,7 +338,7 @@ func _test_gold_from_wins() -> void:
 	_check(state.gold == Vendor.gold_for_win(1), "a won solo fight pays its gold")
 	state.resolve_reward(null)
 	state.complete_combat(true)
-	_check(state.gold == Vendor.gold_for_win(1) + Vendor.gold_for_win(2), "gold accumulates across wins")
+	_check(state.gold == Vendor.gold_for_win(1) + RunState.SKIP_GOLD + Vendor.gold_for_win(2), "gold accumulates across wins (the skip in between paid SKIP_GOLD)")
 	var loser := _at_first_fight(11)
 	loser.complete_combat(false)
 	_check(loser.gold == 0, "a lost fight pays nothing")

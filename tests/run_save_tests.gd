@@ -20,6 +20,7 @@ func run() -> int:
 	_test_corrupt_files()
 	_test_version_mismatch()
 	_test_bad_fields()
+	_test_offered_ids()
 	_test_save_refused_mid_flight()
 	_cleanup()
 	return _failures
@@ -191,6 +192,23 @@ func _test_bad_fields() -> void:
 	big["deck"] = ids
 	_check(RunSave.from_dict(big).run == null, "an oversized deck is rejected")
 	_check(RunSave.from_dict("text").run == null and RunSave.from_dict(null).run == null, "a non-object is rejected")
+
+
+func _test_offered_ids() -> void:
+	var state := RunState.new(7)
+	_walk(state, 4)
+	_check(not state.offered_ids.is_empty(), "setup: the walk saw rewards")
+	var copy := _clone(state)
+	_check(copy != null and copy.offered_ids == state.offered_ids, "offered card ids survive a save round trip")
+	# A save from before the field existed loads with an empty list.
+	var old := RunSave.to_dict(RunState.new(3))
+	old.erase("offered")
+	var loaded := RunSave.from_dict(old)
+	_check(loaded.run != null and loaded.run.offered_ids.is_empty(), "a save without offered ids loads with an empty list")
+	for bad in ["x", 5, ["no_such_card"], [5], null, ["shove", "shove"]]:
+		var data := RunSave.to_dict(RunState.new(3))
+		data["offered"] = bad
+		_check(RunSave.from_dict(data).run == null, "offered = %s is rejected" % JSON.stringify(bad))
 
 
 func _test_save_refused_mid_flight() -> void:

@@ -14,6 +14,10 @@ const REST_HEAL := 24
 const REWARD_CHOICES := 3
 ## How many of a reward's choices come from the character's own cards (the rest are neutral).
 const REWARD_CLASS_CHOICES := 2
+## A reward never offers a card the deck already holds this many times.
+const COPY_CAP := 2
+## Gold paid for skipping a card reward.
+const SKIP_GOLD := 10
 
 ## One stop on the line. `enemy_count` only matters for COMBAT stops and
 ## `beat_index` (into StoryContent) only for STORY stops. A COMBAT stop with
@@ -59,6 +63,9 @@ var escaped: bool = false
 ## vendor tracks gold during a visit; the purchase methods below copy it back so
 ## this is always current.
 var gold: int = 0
+## Ids of every card shown at a card reward so far this run; later rewards avoid them
+## (see _roll_rewards). Saved with the run.
+var offered_ids: Array[StringName] = []
 
 var _vendor: Vendor = null
 var _active_combat: Combat = null
@@ -153,8 +160,9 @@ func reward_choices() -> Array[CardData]:
 	return copy
 
 
-## Adds `card` to the deck (null skips the reward) and moves to the next stop.
-## Rejects a card that was not offered, or any call once the run is finished.
+## Adds `card` to the deck and moves to the next stop. Null skips the reward and
+## pays SKIP_GOLD instead. Rejects a card that was not offered, or any call once
+## the run is finished.
 func resolve_reward(card: CardData) -> bool:
 	if finished or not _reward_pending:
 		return false
@@ -163,6 +171,8 @@ func resolve_reward(card: CardData) -> bool:
 			push_error("RunState.resolve_reward: card was not offered")
 			return false
 		deck.append(card)
+	else:
+		gold += SKIP_GOLD
 	_reward_pending = false
 	_reward_choices = []
 	_advance()
@@ -287,7 +297,7 @@ func _roll_rewards() -> void:
 	# class cards, then neutral cards to fill, then any class cards left over.
 	var class_cards: Array[CardData] = []
 	var neutral_cards: Array[CardData] = []
-	for card in _distinct_cards(StarterContent.reward_pool(character.id)):
+	for card in _reward_candidates(_distinct_cards(StarterContent.reward_pool(character.id))):
 		if card.character == &"":
 			neutral_cards.append(card)
 		else:
@@ -299,6 +309,30 @@ func _roll_rewards() -> void:
 	picks.append_array(neutral_cards.slice(0, REWARD_CHOICES - picks.size()))
 	picks.append_array(class_cards.slice(REWARD_CLASS_CHOICES, REWARD_CLASS_CHOICES + REWARD_CHOICES - picks.size()))
 	_reward_choices.assign(picks)
+	for card in picks:
+		if not offered_ids.has(card.id):
+			offered_ids.append(card.id)
+
+
+## The cards a reward may draw from. Prefers cards not offered before and not at the
+## copy cap; if that leaves fewer than REWARD_CHOICES, lets back in the already-offered
+## ones, and only then the capped ones, so an offer is as full as the pool allows.
+func _reward_candidates(pool: Array[CardData]) -> Array[CardData]:
+	var copies := {}
+	for card in deck:
+		copies[card.id] = int(copies.get(card.id, 0)) + 1
+	var fresh: Array[CardData] = []
+	var uncapped: Array[CardData] = []
+	for card in pool:
+		if int(copies.get(card.id, 0)) < COPY_CAP:
+			uncapped.append(card)
+			if not offered_ids.has(card.id):
+				fresh.append(card)
+	if fresh.size() >= REWARD_CHOICES:
+		return fresh
+	if uncapped.size() >= REWARD_CHOICES:
+		return uncapped
+	return pool
 
 
 func _distinct_cards(cards: Array[CardData]) -> Array[CardData]:

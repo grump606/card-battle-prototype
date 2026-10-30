@@ -125,6 +125,13 @@ func _initialize() -> void:
 			rewards += 1
 			_check(header.text.contains("Reward"), "the header says Reward while a reward is pending")
 			var deck_before := run_state.deck.size()
+			var reward_buttons: Array = []
+			_buttons(body, reward_buttons)
+			var skip_label := "Skip (+%d gold)" % RunState.SKIP_GOLD
+			var has_skip := false
+			for button in reward_buttons:
+				has_skip = has_skip or (button as Button).text == skip_label
+			_check(has_skip, "the reward panel's Skip button shows its gold")
 			var pick := _first_enabled(body)
 			_check(pick != null, "the reward panel offers a choice")
 			var pick_text := pick.text  # read first: pressing rebuilds the panel and frees this button

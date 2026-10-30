@@ -41,6 +41,9 @@ static func to_dict(run: RunState) -> Dictionary:
 	var ids: Array = []
 	for card in run.deck:
 		ids.append(String(card.id))
+	var offered: Array = []
+	for id in run.offered_ids:
+		offered.append(String(id))
 	return {
 		"version": VERSION,
 		"character": String(run.character.id),
@@ -50,6 +53,7 @@ static func to_dict(run: RunState) -> Dictionary:
 		"stop_index": run.stop_index,
 		"line": line_signature(run),
 		"deck": ids,
+		"offered": offered,
 		# A string: JSON numbers are doubles and would round a 64-bit state.
 		"rng_state": str(run.rng_state()),
 	}
@@ -103,6 +107,17 @@ static func from_dict(data: Variant) -> Result:
 		if typeof(entry) != TYPE_STRING or not known.has(entry):
 			return Result.fail("deck has an unknown card")
 		deck.append(known[entry])
+	# Added after version 2 shipped: a save without it is a run that had seen no rewards yet.
+	var offered: Array[StringName] = []
+	if d.has("offered"):
+		var raw_offered: Variant = d["offered"]
+		if typeof(raw_offered) != TYPE_ARRAY or (raw_offered as Array).size() > known.size():
+			return Result.fail("bad offered list")
+		for entry in raw_offered:
+			if typeof(entry) != TYPE_STRING or not known.has(entry) or offered.has(StringName(entry)):
+				return Result.fail("offered list has an unknown or repeated card")
+			offered.append(StringName(entry))
+	run.offered_ids = offered
 	run.player = Combatant.new(run.character.display_name, max_hp, hp)
 	run.deck = deck
 	run.gold = gold
