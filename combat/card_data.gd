@@ -11,6 +11,8 @@ enum TargetMode { SINGLE_ENEMY, ALL_ENEMIES, SELF }
 ## SINGLE_ENEMY: the chosen enemy. ALL_ENEMIES: every living enemy. SELF: no enemy
 ## is targeted. BLOCK and DRAW always affect the player.
 @export var target_mode: TargetMode = TargetMode.SINGLE_ENEMY
+## Which character this card belongs to; empty means neutral (every character can take it).
+@export var character: StringName = &""
 
 
 static func make(card_id: StringName, card_name: String, card_cost: int, card_effects: Array[CardEffect], card_target_mode: TargetMode = TargetMode.SINGLE_ENEMY) -> CardData:

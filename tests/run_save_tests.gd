@@ -15,6 +15,7 @@ func run() -> int:
 	_test_resume_has_equal_future()
 	_test_file_round_trip_and_delete()
 	_test_overwrite_existing_save()
+	_test_characters_in_saves()
 	_test_missing_file()
 	_test_corrupt_files()
 	_test_version_mismatch()
@@ -156,7 +157,7 @@ func _test_corrupt_files() -> void:
 
 func _test_version_mismatch() -> void:
 	var state := RunState.new(3)
-	for bad in [0, 2, -1, "1", null, 1.5]:
+	for bad in [0, 1, 3, -1, "2", null, 2.5]:
 		var data := RunSave.to_dict(state)
 		data["version"] = bad
 		var result := RunSave.from_dict(data)
@@ -203,3 +204,26 @@ func _test_save_refused_mid_flight() -> void:
 	var done := RunState.new(3)
 	done.finished = true
 	_check(RunSave.save(done, test_path) != "", "no save of a finished run")
+
+
+## A save remembers its character, and a deck holding another class's card is rejected.
+func _test_characters_in_saves() -> void:
+	for id in StarterContent.character_ids():
+		var state := RunState.new(11, id)
+		_walk(state, 2)
+		var loaded := RunSave.from_dict(RunSave.to_dict(state))
+		_check(loaded.run != null and loaded.run.character.id == id, "%s: the character survives a save round trip" % id)
+		if loaded.run != null:
+			_check(loaded.run.player.display_name == state.player.display_name and loaded.run.player.max_hp == state.player.max_hp, "%s: the player is restored with its own name and max HP" % id)
+			_check(RunSave.to_dict(loaded.run) == RunSave.to_dict(state), "%s: the restored run saves back identically" % id)
+	var data := RunSave.to_dict(RunState.new(3, &"deserter"))
+	data["character"] = "nobody"
+	_check(RunSave.from_dict(data).run == null, "an unknown character is rejected")
+	data["character"] = 5
+	_check(RunSave.from_dict(data).run == null, "a non-string character is rejected")
+	data.erase("character")
+	_check(RunSave.from_dict(data).run == null, "a missing character is rejected")
+	# A Pickpocket card in a Deserter's deck cannot come from that character's pool.
+	var cross := RunSave.to_dict(RunState.new(3, &"deserter"))
+	(cross["deck"] as Array).append("hamstring")
+	_check(RunSave.from_dict(cross).run == null, "a deck holding another class's card is rejected")

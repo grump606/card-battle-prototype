@@ -93,7 +93,8 @@ var _removed := false
 var _healed := false
 
 
-func _init(deck: Array[CardData], rng: RandomNumberGenerator, starting_gold: int) -> void:
+## `card_pool` is what the stock is drawn from (a character's pool); empty means every card.
+func _init(deck: Array[CardData], rng: RandomNumberGenerator, starting_gold: int, card_pool: Array[CardData] = []) -> void:
 	_deck = deck
 	if starting_gold < 0:
 		push_error("Vendor: starting gold must be >= 0, got %d" % starting_gold)
@@ -104,7 +105,7 @@ func _init(deck: Array[CardData], rng: RandomNumberGenerator, starting_gold: int
 	# Distinct card types by id, in deck order, then a seeded Fisher-Yates shuffle.
 	var pool: Array[CardData] = []
 	var seen := {}
-	for card in StarterContent.reward_pool():
+	for card in (card_pool if not card_pool.is_empty() else StarterContent.all_cards()):
 		if not seen.has(card.id):
 			seen[card.id] = true
 			pool.append(card)

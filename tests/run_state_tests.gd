@@ -8,6 +8,7 @@ var _failures := 0
 func run() -> int:
 	_failures = 0
 	_test_fresh_state()
+	_test_characters()
 	_test_default_line()
 	_test_start_combat_builds_fight_with_persistent_player()
 	_test_start_combat_rejected_off_combat_stop()
@@ -51,8 +52,8 @@ func _at_first_fight(rng_seed: int) -> RunState:
 
 func _test_fresh_state() -> void:
 	var state := RunState.new(1)
-	_check(state.player.hp == RunState.START_HP and state.player.max_hp == RunState.START_HP, "run starts at full HP")
-	_check(state.deck.size() == StarterContent.EXTENDED_DECK_SIZE, "run starts with the extended deck")
+	_check(state.player.hp == state.character.max_hp and state.player.max_hp == state.character.max_hp, "run starts at full HP")
+	_check(state.character.id == StarterContent.DEFAULT_CHARACTER_ID and state.deck.size() == state.character.starting_deck.size(), "run starts with the default character's deck")
 	_check(not state.finished and state.stop_index == 0 and not state.reward_pending(), "run starts unfinished at stop 0")
 
 
@@ -76,7 +77,7 @@ func _test_start_combat_builds_fight_with_persistent_player() -> void:
 	_check(combat != null, "combat stop builds a fight")
 	if combat == null:
 		return
-	_check(combat.player == state.player and combat.player.hp == RunState.START_HP - 15, "fight uses the run's player with carried-over HP")
+	_check(combat.player == state.player and combat.player.hp == state.character.max_hp - 15, "fight uses the run's player with carried-over HP")
 	_check(combat.enemies.size() == 1, "first fight has the stop's enemy count")
 	_check(combat.piles.draw_pile.size() + combat.piles.hand.size() == state.deck.size() or combat.phase == Combat.Phase.NOT_STARTED, "fight is built from the run's deck")
 	combat.abandon()
@@ -464,3 +465,47 @@ func _test_boss_stop() -> void:
 	var beaten := _at_boss(52)
 	beaten.complete_combat(false)
 	_check(beaten.finished and not beaten.escaped, "losing to the boss ends the run without escape")
+
+
+## Each character starts with its own HP, name and deck, and is offered only neutral and own cards.
+func _test_characters() -> void:
+	for id in StarterContent.character_ids():
+		var state := RunState.new(7, id)
+		var character := StarterContent.character(id)
+		_check(state.character.id == id, "%s: the run knows its character" % id)
+		_check(state.player.max_hp == character.max_hp and state.player.hp == character.max_hp, "%s starts at its own full HP" % id)
+		_check(state.player.display_name == character.display_name, "%s: the player is named after the character" % id)
+		_check(state.deck.size() == 10, "%s starts with 10 cards" % id)
+		state.deck.append(character.starting_deck[0])
+		_check(character.starting_deck.size() == 10, "%s: editing the run deck leaves the character resource alone" % id)
+		# Every reward offer, over many seeds and wins, holds only neutral or own cards.
+		var class_seen := 0
+		for seed_value in 40:
+			var run := RunState.new(seed_value, id)
+			run.read_story()
+			run.start_combat().abandon()
+			run.complete_combat(true)
+			var choices := run.reward_choices()
+			_check(choices.size() == RunState.REWARD_CHOICES, "%s: a reward offers %d cards" % [id, RunState.REWARD_CHOICES])
+			var distinct := {}
+			var own := 0
+			for card in choices:
+				distinct[card.id] = true
+				_check(card.character == &"" or card.character == id, "%s: reward %s is neutral or its own" % [id, card.id])
+				if card.character == id:
+					own += 1
+			_check(distinct.size() == choices.size(), "%s: a reward offers distinct cards" % id)
+			_check(own == mini(RunState.REWARD_CLASS_CHOICES, _class_card_count(id)), "%s: a reward holds %d of its own cards" % [id, mini(RunState.REWARD_CLASS_CHOICES, _class_card_count(id))])
+			class_seen += own
+		_check((class_seen > 0) == (_class_card_count(id) > 0), "%s: class cards are offered exactly when the class has some" % id)
+	# An unknown character falls back to a constructible run (the cause is logged).
+	var fallback := RunState.new(1, &"nobody")
+	_check(fallback.character != null and not fallback.finished, "an unknown character still builds a run")
+
+
+func _class_card_count(id: StringName) -> int:
+	var count := 0
+	for card in StarterContent.reward_pool(id):
+		if card.character == id:
+			count += 1
+	return count

@@ -14,3 +14,4 @@ id = &"heavy_blow"
 display_name = "Heavy Blow"
 cost = 2
 effects = Array[ExtResource("2_effect")]([SubResource("Resource_effect")])
+character = &"deserter"

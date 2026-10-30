@@ -10,9 +10,10 @@ extends RefCounted
 
 enum StopType { COMBAT, REST, STORY, VENDOR }
 
-const START_HP := 48
 const REST_HEAL := 24
 const REWARD_CHOICES := 3
+## How many of a reward's choices come from the character's own cards (the rest are neutral).
+const REWARD_CLASS_CHOICES := 2
 
 ## One stop on the line. `enemy_count` only matters for COMBAT stops and
 ## `beat_index` (into StoryContent) only for STORY stops. A COMBAT stop with
@@ -44,6 +45,8 @@ class Stop:
 				return "Vendor"
 		return "?"
 
+## Who is playing: sets the starting HP and deck and which cards the run can offer.
+var character: Character
 var player: Combatant
 var deck: Array[CardData]
 var stops: Array[Stop] = []
@@ -64,10 +67,15 @@ var _reward_choices: Array[CardData] = []
 var _reward_pending: bool = false
 
 
-func _init(rng_seed: int = 0) -> void:
+func _init(rng_seed: int = 0, character_id: StringName = StarterContent.DEFAULT_CHARACTER_ID) -> void:
 	_rng.seed = rng_seed
-	player = Combatant.new("Wanderer", START_HP)
-	deck = StarterContent.extended_deck()
+	character = StarterContent.character(character_id)
+	if character == null:
+		# The cause is logged; an empty character keeps the run constructible, and its first
+		# fight then fails cleanly because Combat rejects an empty deck.
+		character = Character.new()
+	player = Combatant.new(character.display_name, character.max_hp)
+	deck.assign(character.starting_deck)
 	stops = _default_line()
 
 
@@ -196,7 +204,7 @@ func vendor() -> Vendor:
 	if stop == null or stop.type != StopType.VENDOR:
 		return null
 	if _vendor == null:
-		_vendor = Vendor.new(deck, _rng, gold)
+		_vendor = Vendor.new(deck, _rng, gold, StarterContent.reward_pool(character.id))
 	return _vendor
 
 
@@ -275,9 +283,22 @@ func _default_line() -> Array[Stop]:
 
 
 func _roll_rewards() -> void:
-	var pool := _distinct_cards(StarterContent.reward_pool())
-	_shuffle(pool)
-	_reward_choices.assign(pool.slice(0, REWARD_CHOICES))
+	# Mostly the character's own cards, with a neutral one mixed in: up to REWARD_CLASS_CHOICES
+	# class cards, then neutral cards to fill, then any class cards left over.
+	var class_cards: Array[CardData] = []
+	var neutral_cards: Array[CardData] = []
+	for card in _distinct_cards(StarterContent.reward_pool(character.id)):
+		if card.character == &"":
+			neutral_cards.append(card)
+		else:
+			class_cards.append(card)
+	_shuffle(class_cards)
+	_shuffle(neutral_cards)
+	var picks: Array[CardData] = []
+	picks.append_array(class_cards.slice(0, REWARD_CLASS_CHOICES))
+	picks.append_array(neutral_cards.slice(0, REWARD_CHOICES - picks.size()))
+	picks.append_array(class_cards.slice(REWARD_CLASS_CHOICES, REWARD_CLASS_CHOICES + REWARD_CHOICES - picks.size()))
+	_reward_choices.assign(picks)
 
 
 func _distinct_cards(cards: Array[CardData]) -> Array[CardData]:

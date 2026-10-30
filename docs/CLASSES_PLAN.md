@@ -1,6 +1,6 @@
 # Classes build plan
 
-Three playable characters (Deserter, Pickpocket, Medium), each with a class card pool, sharing a neutral pool. Status: plan, nothing built yet. Card numbers are first drafts for the sim to tune.
+Three playable characters (Deserter, Pickpocket, Medium), each with a class card pool, sharing a neutral pool. Status: Phase 1 done (character infrastructure, existing cards only); Phases 2 to 7 not started. Card numbers are first drafts for the sim to tune.
 
 ## Decisions assumed (change any before Phase 1)
 

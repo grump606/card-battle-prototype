@@ -97,15 +97,7 @@ func _test_extended_deck() -> void:
 	var want := {&"shove": 3, &"slip_past": 2, &"glimpse_exit": 1, &"heavy_blow": 1, &"brace": 1, &"steady_breath": 1, &"shoulder_charge": 1, &"mark_the_weak": 1, &"sweep": 1, &"cutting_word": 1, &"second_wind": 1}
 	_check(counts == want, "extended deck composition: %s" % str(counts))
 
-	# The extra cards are offered as rewards and sold, but are not in the starting deck.
-	var pool_ids := {}
-	for card in StarterContent.reward_pool():
-		_check(not pool_ids.has(card.id), "reward pool card is distinct: %s" % card.id)
-		pool_ids[card.id] = true
-	for id in [&"hamstring", &"iron_resolve", &"flurry", &"guarded_strike"]:
-		_check(pool_ids.has(id) and not counts.has(id), "%s is in the reward pool but not the starting deck" % id)
-	for id in counts:
-		_check(pool_ids.has(id), "every extended-deck card is in the reward pool: %s" % id)
+	_test_characters_and_pools()
 
 
 func _test_existing_content_unchanged() -> void:
@@ -202,3 +194,46 @@ func _test_boss_encounter() -> void:
 		for count in [1, 2, 3]:
 			for enemy in StarterContent.varied_encounter(count, rng):
 				_check(enemy.display_name != "The Conductor", "the boss never appears in a random encounter (seed %d)" % seed_value)
+
+
+## Characters own their starting decks and class cards; neutral cards are shared.
+func _test_characters_and_pools() -> void:
+	var all := StarterContent.all_cards()
+	_check(all.size() == StarterContent.ALL_CARD_PATHS.size() and all.size() == 15, "all_cards loads all 15 cards")
+	var ids := {}
+	for card in all:
+		_check(not ids.has(card.id), "card id is unique: %s" % card.id)
+		ids[card.id] = true
+		_check(card.character == &"" or StarterContent.CHARACTER_PATHS.has(card.character), "card %s is neutral or tagged for a known character" % card.id)
+	var neutral_ids: Array = []
+	for card in all:
+		if card.character == &"":
+			neutral_ids.append(String(card.id))
+	neutral_ids.sort()
+	_check(neutral_ids == ["brace", "flurry", "glimpse_exit", "shove", "slip_past", "sweep"], "the neutral pool is Brace, Flurry, Glimpse the Exit, Shove, Slip Past and Sweep")
+
+	_check(StarterContent.character_ids() == [&"deserter", &"pickpocket", &"medium"], "three characters, in selection order")
+	_check(StarterContent.character(&"nobody") == null, "an unknown character is null")
+	var max_hp := {&"deserter": 54, &"pickpocket": 44, &"medium": 48}
+	for id in StarterContent.character_ids():
+		var character := StarterContent.character(id)
+		_check(character != null and character.id == id and character.display_name != "" and character.pitch != "", "character %s loads with a name and pitch" % id)
+		if character == null:
+			continue
+		_check(character.max_hp == max_hp[id], "character %s starts at %d HP" % [id, max_hp[id]])
+		_check(character.starting_deck.size() == 10, "character %s starts with 10 cards" % id)
+		for card in character.starting_deck:
+			_check(card.character == &"" or card.character == id, "%s starting deck holds only neutral or own cards (%s)" % [id, card.id])
+		var pool := StarterContent.reward_pool(id)
+		var pool_ids := {}
+		for card in pool:
+			_check(not pool_ids.has(card.id), "%s pool card is distinct: %s" % [id, card.id])
+			pool_ids[card.id] = true
+			_check(card.character == &"" or card.character == id, "%s pool holds only neutral or own cards (%s)" % [id, card.id])
+		for card in character.starting_deck:
+			_check(pool_ids.has(card.id), "%s can be offered every card it starts with (%s)" % [id, card.id])
+		_check(pool.size() >= 6, "%s pool can fill a three-card offer" % id)
+	var deserter_ids := {}
+	for card in StarterContent.reward_pool(&"deserter"):
+		deserter_ids[card.id] = true
+	_check(deserter_ids.has(&"heavy_blow") and not deserter_ids.has(&"hamstring"), "the Deserter can take Heavy Blow but not the Pickpocket's Hamstring")

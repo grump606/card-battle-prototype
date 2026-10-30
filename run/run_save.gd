@@ -7,7 +7,7 @@ extends RefCounted
 ## A save file is untrusted input: from_dict / load_file validate every field and
 ## return a Result with an error message instead of ever failing.
 
-const VERSION := 1
+const VERSION := 2
 const DEFAULT_PATH := "user://run_save.json"
 const MAX_FILE_BYTES := 1048576
 const MAX_DECK := 200
@@ -43,6 +43,7 @@ static func to_dict(run: RunState) -> Dictionary:
 		ids.append(String(card.id))
 	return {
 		"version": VERSION,
+		"character": String(run.character.id),
 		"hp": run.player.hp,
 		"max_hp": run.player.max_hp,
 		"gold": run.gold,
@@ -63,7 +64,12 @@ static func from_dict(data: Variant) -> Result:
 		return Result.fail("save has no valid version")
 	if version != VERSION:
 		return Result.fail("save version %d is not supported (expected %d)" % [version, VERSION])
-	var run := RunState.new(0)
+	var character_id: Variant = d.get("character")
+	if typeof(character_id) != TYPE_STRING or not StarterContent.CHARACTER_PATHS.has(StringName(character_id)):
+		return Result.fail("save names an unknown character")
+	var run := RunState.new(0, StringName(character_id))
+	if run.character.id != StringName(character_id):
+		return Result.fail("character content failed to load")
 	var max_hp: Variant = _int(d, "max_hp", 1, MAX_HP)
 	if max_hp == null:
 		return Result.fail("bad max_hp")
@@ -88,7 +94,7 @@ static func from_dict(data: Variant) -> Result:
 	if typeof(raw_deck) != TYPE_ARRAY or (raw_deck as Array).is_empty() or (raw_deck as Array).size() > MAX_DECK:
 		return Result.fail("bad deck")
 	var known := {}
-	for card in StarterContent.reward_pool():
+	for card in StarterContent.reward_pool(run.character.id):
 		known[String(card.id)] = card
 	if known.is_empty():
 		return Result.fail("card content failed to load")
@@ -97,7 +103,7 @@ static func from_dict(data: Variant) -> Result:
 		if typeof(entry) != TYPE_STRING or not known.has(entry):
 			return Result.fail("deck has an unknown card")
 		deck.append(known[entry])
-	run.player = Combatant.new("Wanderer", max_hp, hp)
+	run.player = Combatant.new(run.character.display_name, max_hp, hp)
 	run.deck = deck
 	run.gold = gold
 	run.stop_index = stop_index

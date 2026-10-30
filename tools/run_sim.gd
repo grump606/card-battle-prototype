@@ -18,6 +18,7 @@ const POLICIES: Array[String] = ["greedy", "smart"]
 const USAGE := "Usage: godot --headless --path . -s res://tools/run_sim.gd -- [--runs N] [--seed S] [--policy P] [--help]\n  --runs N    number of whole runs, integer >= 1 (default 300)\n  --seed S    base random seed, integer (default 1)\n  --policy P  greedy (default) or smart (stronger lookahead player)\n  --help      print this usage and exit 0"
 
 var _smart := false
+var _character: StringName = StarterContent.DEFAULT_CHARACTER_ID
 
 
 func _initialize() -> void:
@@ -33,6 +34,7 @@ func _initialize() -> void:
 	var runs: int = opts["runs"]
 	var base_seed: int = opts["seed"]
 	_smart = opts["policy"] == "smart"
+	_character = StringName(opts["character"])
 
 	var escapes := 0
 	var stalls := 0
@@ -43,7 +45,7 @@ func _initialize() -> void:
 	var entering := {} # stop index -> [runs that reached it, total HP on arrival]
 	var stop_desc := {} # stop index -> description
 	for i in runs:
-		var run := RunState.new(base_seed * 1000003 + i)
+		var run := RunState.new(base_seed * 1000003 + i, _character)
 		if run.stops.is_empty():
 			printerr("run_sim: run has no stops")
 			quit(1)
@@ -101,10 +103,8 @@ func _initialize() -> void:
 			var desc: String = stop_desc[run.stop_index]
 			deaths_by_desc[desc] = deaths_by_desc.get(desc, 0) + 1
 
-	if _smart:
-		print("Run sim: %d runs, seed %d, policy smart, player HP %d, turn cap %d" % [runs, base_seed, RunState.START_HP, TURN_CAP])
-	else:
-		print("Run sim: %d runs, seed %d, player HP %d, turn cap %d" % [runs, base_seed, RunState.START_HP, TURN_CAP])
+	var start_hp := StarterContent.character(_character).max_hp
+	print("Run sim: %d runs, seed %d, character %s, policy %s, player HP %d, turn cap %d" % [runs, base_seed, _character, "smart" if _smart else "greedy", start_hp, TURN_CAP])
 	print("Escape rate: %d/%d (%.1f%%)" % [escapes, runs, 100.0 * escapes / runs])
 	print("Stalls (fight abandoned at turn cap, run counted lost): %d" % stalls)
 	if escapes > 0:
@@ -132,13 +132,21 @@ func _initialize() -> void:
 
 ## Returns {runs, seed, policy} or an empty dictionary (after printing usage) on bad input.
 func _parse_args(args: PackedStringArray) -> Dictionary:
-	var opts := {"runs": DEFAULT_RUNS, "seed": DEFAULT_SEED, "policy": "greedy"}
+	var opts := {"runs": DEFAULT_RUNS, "seed": DEFAULT_SEED, "policy": "greedy", "character": String(StarterContent.DEFAULT_CHARACTER_ID)}
 	var i := 0
 	while i < args.size():
 		var name := args[i]
-		if name != "--runs" and name != "--seed" and name != "--policy":
+		if name != "--runs" and name != "--seed" and name != "--policy" and name != "--character":
 			printerr("run_sim: unknown argument '%s'\n%s" % [name, USAGE])
 			return {}
+		if name == "--character":
+			if i + 1 >= args.size() or not StarterContent.CHARACTER_PATHS.has(StringName(args[i + 1])):
+				printerr("run_sim: --character must be one of %s
+%s" % [", ".join(StarterContent.character_ids()), USAGE])
+				return {}
+			opts["character"] = args[i + 1]
+			i += 2
+			continue
 		if name == "--policy":
 			if i + 1 >= args.size() or not args[i + 1] in POLICIES:
 				printerr("run_sim: --policy must be one of %s\n%s" % [", ".join(POLICIES), USAGE])

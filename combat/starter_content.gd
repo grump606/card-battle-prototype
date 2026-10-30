@@ -29,8 +29,19 @@ const WHISPERER_PATH := "res://data/enemies/pale_whisperer.tres"
 ## The run's boss. Deliberately not in ALL_ENEMY_PATHS: it only appears via boss_encounter().
 const CONDUCTOR_PATH := "res://data/enemies/the_conductor.tres"
 const EXTENDED_DECK_SIZE := 14
-## Cards offered only as rewards and vendor stock, never in a starting deck.
-const REWARD_ONLY_PATHS: Array[String] = [HAMSTRING_PATH, IRON_RESOLVE_PATH, FLURRY_PATH, GUARDED_STRIKE_PATH]
+## Every card, in a fixed order. A card's `character` tag says who may take it (empty = everyone).
+const ALL_CARD_PATHS: Array[String] = [
+	SHOVE_PATH, SLIP_PAST_PATH, GLIMPSE_EXIT_PATH, BRACE_PATH, FLURRY_PATH, SWEEP_PATH,
+	HEAVY_BLOW_PATH, STEADY_BREATH_PATH, SHOULDER_CHARGE_PATH, IRON_RESOLVE_PATH, GUARDED_STRIKE_PATH,
+	MARK_THE_WEAK_PATH, CUTTING_WORD_PATH, HAMSTRING_PATH, SECOND_WIND_PATH,
+]
+## Playable characters, in the order a selection screen lists them.
+const CHARACTER_PATHS := {
+	&"deserter": "res://data/characters/deserter.tres",
+	&"pickpocket": "res://data/characters/pickpocket.tres",
+	&"medium": "res://data/characters/medium.tres",
+}
+const DEFAULT_CHARACTER_ID := &"deserter"
 ## The regular enemy types in a fixed order (the boss is separate, see CONDUCTOR_PATH): warden,
 ## lost shade, wisp, colossus, whisperer, cinder hound, mourning crow. The colossus is a solo-only
 ## elite (it was unwinnable next to a second enemy in the balance sim); the
@@ -83,24 +94,47 @@ static func extended_deck() -> Array[CardData]:
 	return cards
 
 
-## The distinct cards the run can offer as rewards or sell at a vendor: every card in the
-## extended deck plus the extra cards that only appear this way (they are not in any
-## starting deck). Empty (cause logged) if any card fails to load.
-static func reward_pool() -> Array[CardData]:
-	var pool: Array[CardData] = []
-	var seen := {}
-	var cards := extended_deck()
-	for path in REWARD_ONLY_PATHS:
+## Every card that loads, in ALL_CARD_PATHS order. Empty (cause logged) if any fails to load.
+static func all_cards() -> Array[CardData]:
+	var cards: Array[CardData] = []
+	for path in ALL_CARD_PATHS:
 		var card := _load_card(path)
 		if card == null:
 			var empty: Array[CardData] = []
 			return empty
 		cards.append(card)
-	for card in cards:
-		if not seen.has(card.id):
-			seen[card.id] = true
+	return cards
+
+
+## The distinct cards a character can be offered as rewards or sell at a vendor: every neutral
+## card plus the cards tagged for `character_id`. Empty (cause logged) if any card fails to load.
+static func reward_pool(character_id: StringName) -> Array[CardData]:
+	var pool: Array[CardData] = []
+	for card in all_cards():
+		if card.character == &"" or card.character == character_id:
 			pool.append(card)
 	return pool
+
+
+static func character_ids() -> Array[StringName]:
+	var ids: Array[StringName] = []
+	for id in CHARACTER_PATHS:
+		ids.append(id)
+	return ids
+
+
+## The character with this id, or null (cause logged) for an unknown id or a resource that fails to load.
+static func character(character_id: StringName) -> Character:
+	if not CHARACTER_PATHS.has(character_id):
+		push_error("StarterContent.character: unknown character '%s'" % character_id)
+		return null
+	var path: String = CHARACTER_PATHS[character_id]
+	var loaded: Character = null
+	if ResourceLoader.exists(path):
+		loaded = load(path) as Character
+	if loaded == null:
+		push_error("StarterContent: missing or non-Character resource: %s" % path)
+	return loaded
 
 
 static func warden() -> EnemyData:
