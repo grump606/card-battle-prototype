@@ -178,7 +178,7 @@ func _initialize() -> void:
 	_check(_count_buttons(body, "Play as") == 3 and header.text.contains("Choose your passenger"), "New Run on the end card opens the select screen")
 	_find(body, "Play as The Pickpocket").pressed.emit()
 	await process_frame
-	_check(scene._run.character.id == &"pickpocket" and scene._run.player.max_hp == 44 and scene._run.player.display_name == "The Pickpocket", "picking the Pickpocket starts a Pickpocket run")
+	_check(scene._run.character.id == &"pickpocket" and scene._run.player.max_hp == StarterContent.character(&"pickpocket").max_hp and scene._run.player.display_name == "The Pickpocket", "picking the Pickpocket starts a Pickpocket run")
 	_check(scene._run.stop_index == 0 and not scene._run.finished and scene._run.gold == 0, "a character pick starts a fresh run")
 	_check(body.get_child_count() == 1, "New Run leaves exactly one panel in the body")
 	_check(FileAccess.file_exists(test_save), "a new run is saved at its first stop")

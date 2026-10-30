@@ -15,5 +15,5 @@ script = ExtResource("1_char")
 id = &"medium"
 display_name = "The Medium"
 pitch = "Heard the dead before joining them. Pays in blood to haunt the living."
-max_hp = 48
+max_hp = 41
 starting_deck = Array[ExtResource("2_card")]([ExtResource("3_shove"), ExtResource("3_shove"), ExtResource("3_shove"), ExtResource("4_slip_past"), ExtResource("4_slip_past"), ExtResource("5_glimpse_exit"), ExtResource("6_confess"), ExtResource("7_lingering_dread"), ExtResource("8_penance"), ExtResource("9_cold_whisper")])

@@ -1,13 +1,13 @@
 # Classes build plan
 
-Three playable characters (Deserter, Pickpocket, Medium), each with a class card pool, sharing a neutral pool. Status: Phases 1 (character infrastructure), 2 (character select screen), 3 (Deserter), 4 (Pickpocket) and 5 (Medium) mechanics and cards done; Phases 6 and 7 not started. Interim sim numbers (300 runs, seed 1, greedy / smart): Deserter 81% / 96% (far too easy), Pickpocket 52% / 63%, Medium 51% / 21%. The bots do not yet understand the new cards (the smart bot plays the Medium badly), so these are not trustworthy; Phase 6 teaches the bots and retunes. Card numbers are first drafts for the sim to tune.
+Three playable characters (Deserter, Pickpocket, Medium), each with a class card pool, sharing a neutral pool. Status: Phases 1 (character infrastructure), 2 (character select screen), 3 (Deserter), 4 (Pickpocket), 5 (Medium) and 6 (bots and balance) done; Phase 7 (story) not started. Greedy escape rate over 600 runs and seeds 1 to 3: Deserter 42.7%, Pickpocket 43.9%, Medium 45.2%; smart about 75% / 62% / 56%. Phase 6 nerfed the Deserter's Hold cards (Hold the Line 5/2, Dig In 2/2, Last Stand 14/10) because HP alone could not fix them without making the Deserter frailer than the Medium.
 
 ## Decisions assumed (change any before Phase 1)
 
 - Neutral pool: Slip Past, Brace, Shove, Glimpse the Exit, Flurry, Sweep.
 - Existing non-neutral cards move into classes: Deserter gets Shoulder Charge, Iron Resolve, Guarded Strike, Heavy Blow, Steady Breath. Pickpocket gets Mark the Weak, Cutting Word, Hamstring, Second Wind. The Medium has no existing cards.
 - Starting deck (10 cards): 3 Shove, 2 Slip Past, 1 Glimpse the Exit, plus 4 class cards.
-- Starting HP: Deserter 54, Pickpocket 44, Medium 48 (tuned in Phase 6).
+- Starting HP: Deserter 47, Pickpocket 34, Medium 41 (tuned in Phase 6; the Medium's HP-cost cards make it the most HP-sensitive class).
 - Counter-Stance keeps its thorns effect (the costliest new mechanic; swap it if it proves awkward).
 - Reward offers: about 2 class cards and 1 neutral card per offer of three.
 - Cards that cost HP cannot be played if the player would die from the cost.
@@ -17,7 +17,7 @@ Three playable characters (Deserter, Pickpocket, Medium), each with a class card
 
 Neutral (cost, effect): Slip Past (1, Block 5), Brace (0, Block 2), Shove (1, Damage 6), Glimpse the Exit (0, Draw 2), Flurry (0, Damage 3), Sweep (2, Damage 5 to all).
 
-**Deserter** (starting class cards in bold). New: **Hold the Line** (1, Block 6, Hold 3), **Bash** (1, Damage equal to current Block), Dig In (0, Block 3, Hold 3), Cold Steel (1, Damage 5, or 10 with 10+ Block), Counter-Stance (2, Block 8, thorns 4 this enemy phase), Last Stand (3, Block 16, Hold all). Existing: **Shoulder Charge**, **Iron Resolve**, Guarded Strike, Heavy Blow, Steady Breath.
+**Deserter** (starting class cards in bold). New: **Hold the Line** (1, Block 5, Hold 2), **Bash** (1, Damage equal to current Block), Dig In (0, Block 2, Hold 2), Cold Steel (1, Damage 5, or 10 with 10+ Block), Counter-Stance (2, Block 8, thorns 4 this enemy phase), Last Stand (3, Block 14, Hold 10). Existing: **Shoulder Charge**, **Iron Resolve**, Guarded Strike, Heavy Blow, Steady Breath.
 
 **Pickpocket**. New: **Lift** (1, Damage 3, Draw 1), **Sleight** (0, Expose 1), Pocket Watch (1, gain 1 energy, Draw 1), Last Pocket (1, Damage 4 plus 3 per card played earlier this turn), Spree (2, Damage 2 per card played this turn, counting itself). Existing: **Mark the Weak**, Cutting Word, Hamstring, Second Wind.
 

@@ -10,6 +10,8 @@ const PLAYER_START_HP := 40 # keep in sync with battle.gd
 const TURN_CAP := 50 # a fight still running after this many turns is a stall
 const DEFAULT_FIGHTS := 500
 const DEFAULT_SEED := 1
+var _player_hp := PLAYER_START_HP
+
 const USAGE := "Usage: godot --headless --path . -s res://tools/balance_sim.gd -- [--fights N] [--seed S] [--help]\n  --fights N  fights per encounter size, integer >= 1 (default 500)\n  --seed S    base random seed, integer (default 1)\n  --help      print this usage and exit 0"
 
 
@@ -26,12 +28,21 @@ func _initialize() -> void:
 	var fights: int = opts["fights"]
 	var base_seed: int = opts["seed"]
 	var deck := StarterContent.extended_deck()
+	_player_hp = PLAYER_START_HP
+	if opts["character"] != "":
+		var character := StarterContent.character(StringName(opts["character"]))
+		if character == null:
+			quit(1)
+			return
+		deck = []
+		deck.assign(character.starting_deck)
+		_player_hp = character.max_hp
 	if deck.is_empty():
-		printerr("balance_sim: extended deck failed to load")
+		printerr("balance_sim: the deck failed to load")
 		quit(1)
 		return
 
-	print("Balance sim: %d fights per size, seed %d, player HP %d, turn cap %d" % [fights, base_seed, PLAYER_START_HP, TURN_CAP])
+	print("Balance sim: %d fights per size, seed %d, player HP %d, turn cap %d" % [fights, base_seed, _player_hp, TURN_CAP])
 	print("%-8s %8s %10s %12s %7s" % ["enemies", "win rate", "avg turns", "avg HP (win)", "stalls"])
 	var breakdown: Array[Dictionary] = [] # per size: enemy name -> [fights, wins]
 	for count in range(1, Combat.MAX_ENEMIES + 1):
@@ -49,7 +60,7 @@ func _initialize() -> void:
 				printerr("balance_sim: encounter of %d enemies failed to load" % count)
 				quit(1)
 				return
-			var player := Combatant.new("Sim", PLAYER_START_HP)
+			var player := Combatant.new("Sim", _player_hp)
 			var combat := Combat.new(player, deck, enemy_datas, fight_seed)
 			var result := _run_fight(combat)
 			total_turns += combat.turn
@@ -90,10 +101,18 @@ func _initialize() -> void:
 
 ## Returns {fights, seed} or an empty dictionary (after printing usage) on bad input.
 func _parse_args(args: PackedStringArray) -> Dictionary:
-	var opts := {"fights": DEFAULT_FIGHTS, "seed": DEFAULT_SEED}
+	var opts := {"fights": DEFAULT_FIGHTS, "seed": DEFAULT_SEED, "character": ""}
 	var i := 0
 	while i < args.size():
 		var name := args[i]
+		if name == "--character":
+			if i + 1 >= args.size() or not StarterContent.CHARACTER_PATHS.has(StringName(args[i + 1])):
+				printerr("balance_sim: --character must be one of %s
+%s" % [", ".join(StarterContent.character_ids()), USAGE])
+				return {}
+			opts["character"] = args[i + 1]
+			i += 2
+			continue
 		if name != "--fights" and name != "--seed":
 			printerr("balance_sim: unknown argument '%s'\n%s" % [name, USAGE])
 			return {}

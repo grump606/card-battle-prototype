@@ -34,14 +34,16 @@ static func _pick_card(combat: Combat) -> int:
 		if not combat.can_play(i):
 			continue
 		var card: CardData = combat.piles.hand[i]
+		if _too_costly_in_hp(combat, card):
+			continue
 		var rank := 3
 		if _expose_sets_up_damage(combat, i):
 			rank = -1
 		elif card.cost == 0:
 			rank = 0
-		elif need_block and _has_effect(card, CardEffect.Kind.BLOCK):
+		elif need_block and is_block_card(card):
 			rank = 1
-		elif _has_effect(card, CardEffect.Kind.DAMAGE):
+		elif is_damage_card(card):
 			rank = 2
 		if rank < best_rank:
 			best_rank = rank
@@ -68,9 +70,32 @@ static func _expose_sets_up_damage(combat: Combat, index: int) -> bool:
 	if all_exposed:
 		return false
 	for j in combat.piles.hand.size():
-		if j != index and _has_effect(combat.piles.hand[j], CardEffect.Kind.DAMAGE) and combat.piles.hand[j].cost <= combat.energy - card.cost:
+		if j != index and is_damage_card(combat.piles.hand[j]) and combat.piles.hand[j].cost <= combat.energy - card.cost:
 			return true
 	return false
+
+
+## A card the policy treats as an attack: plain or scaled damage, or Haunt (damage over time).
+static func is_damage_card(card: CardData) -> bool:
+	for effect in card.effects:
+		match effect.kind:
+			CardEffect.Kind.DAMAGE, CardEffect.Kind.DAMAGE_PER_BLOCK, CardEffect.Kind.DAMAGE_IF_BLOCK, CardEffect.Kind.DAMAGE_PER_PLAY, CardEffect.Kind.DAMAGE_PER_HAUNT, CardEffect.Kind.HAUNT:
+				return true
+	return false
+
+
+## A card the policy treats as defence: Block, or the Hold and Thorns that go with it.
+static func is_block_card(card: CardData) -> bool:
+	for effect in card.effects:
+		match effect.kind:
+			CardEffect.Kind.BLOCK, CardEffect.Kind.HOLD, CardEffect.Kind.THORNS:
+				return true
+	return false
+
+
+## Greedy never pays HP that would leave it under a quarter of its max HP.
+static func _too_costly_in_hp(combat: Combat, card: CardData) -> bool:
+	return card.hp_cost() > 0 and combat.player.hp - card.hp_cost() < combat.player.max_hp / 4
 
 
 static func _has_effect(card: CardData, kind: CardEffect.Kind) -> bool:

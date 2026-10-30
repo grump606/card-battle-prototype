@@ -220,27 +220,27 @@ func _test_real_cards() -> void:
 		cards[card.id] = card
 	for id in [&"hold_the_line", &"bash", &"dig_in", &"cold_steel", &"counter_stance", &"last_stand"]:
 		_check(cards.has(id) and (cards[id] as CardData).character == &"deserter", "%s is a Deserter card" % id)
-	_check(cards[&"hold_the_line"].describe() == "Block 6, Hold 3", "Hold the Line text")
-	_check(cards[&"last_stand"].cost == 3 and cards[&"last_stand"].describe() == "Block 16, Hold 16", "Last Stand keeps all its Block")
+	_check(cards[&"hold_the_line"].describe() == "Block 5, Hold 2", "Hold the Line text")
+	_check(cards[&"last_stand"].cost == 3 and cards[&"last_stand"].describe() == "Block 14, Hold 10", "Last Stand text")
 	_check(cards[&"counter_stance"].describe() == "Block 8, Thorns 4", "Counter-Stance text")
 	_check(cards[&"cold_steel"].describe() == "Deal 5 (10 with 10+ Block)", "Cold Steel text")
 
-	# Last Stand: Block 16, all of it survives an empty enemy phase.
+	# Last Stand: Block 14, of which 10 is held through an empty enemy phase.
 	var last_stand: CardData = cards[&"last_stand"]
 	var fight := Combat.new(Combatant.new("p", 40), [last_stand] as Array[CardData], _enemies(1, 100, []))
 	fight.start()
 	fight.play_card(0)
 	fight.end_player_turn()
-	_check(fight.player.block == 16, "Last Stand carries all 16 Block")
+	_check(fight.player.block == 10, "Last Stand carries the 10 it holds")
 
-	# Bash after Hold the Line: 6 Block, 6 damage.
+	# Bash after Hold the Line: 5 Block, 5 damage.
 	var hold_line: CardData = cards[&"hold_the_line"]
 	var bash: CardData = cards[&"bash"]
 	var combo := Combat.new(Combatant.new("p", 40), [hold_line, bash] as Array[CardData], _enemies(1, 100, []))
 	combo.start()
 	combo.play_card(combo.piles.hand.find(hold_line))
 	combo.play_card(combo.piles.hand.find(bash), 0)
-	_check(combo.enemies[0].hp == 94, "Hold the Line then Bash deals 6")
+	_check(combo.enemies[0].hp == 95, "Hold the Line then Bash deals 5")
 
 
 # --- Pickpocket mechanics: gaining energy, damage per card played -------------

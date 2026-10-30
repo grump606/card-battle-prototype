@@ -18,6 +18,8 @@ const POLICIES: Array[String] = ["greedy", "smart"]
 const USAGE := "Usage: godot --headless --path . -s res://tools/run_sim.gd -- [--runs N] [--seed S] [--policy P] [--help]\n  --runs N    number of whole runs, integer >= 1 (default 300)\n  --seed S    base random seed, integer (default 1)\n  --policy P  greedy (default) or smart (stronger lookahead player)\n  --help      print this usage and exit 0"
 
 var _smart := false
+var _card_stats := false
+var _plays := {} # card id -> times played across all runs
 var _character: StringName = StarterContent.DEFAULT_CHARACTER_ID
 
 
@@ -35,6 +37,7 @@ func _initialize() -> void:
 	var base_seed: int = opts["seed"]
 	_smart = opts["policy"] == "smart"
 	_character = StringName(opts["character"])
+	_card_stats = opts["card_stats"]
 
 	var escapes := 0
 	var stalls := 0
@@ -127,16 +130,29 @@ func _initialize() -> void:
 		print("none")
 	for desc: String in descs:
 		print("%-18s %7d (%.1f%% of runs)" % [desc, deaths_by_desc[desc], 100.0 * deaths_by_desc[desc] / runs])
+	if _card_stats:
+		print("")
+		print("Card plays per run (a card never played shows 0.00)")
+		var played: Array = []
+		for card in StarterContent.reward_pool(_character):
+			played.append([card.id, _plays.get(card.id, 0)])
+		played.sort_custom(func(a: Array, b: Array) -> bool: return a[1] > b[1])
+		for entry: Array in played:
+			print("%-18s %6.2f" % [entry[0], float(entry[1]) / runs])
 	quit(0)
 
 
 ## Returns {runs, seed, policy} or an empty dictionary (after printing usage) on bad input.
 func _parse_args(args: PackedStringArray) -> Dictionary:
-	var opts := {"runs": DEFAULT_RUNS, "seed": DEFAULT_SEED, "policy": "greedy", "character": String(StarterContent.DEFAULT_CHARACTER_ID)}
+	var opts := {"runs": DEFAULT_RUNS, "seed": DEFAULT_SEED, "policy": "greedy", "character": String(StarterContent.DEFAULT_CHARACTER_ID), "card_stats": false}
 	var i := 0
 	while i < args.size():
 		var name := args[i]
-		if name != "--runs" and name != "--seed" and name != "--policy" and name != "--character":
+		if name == "--card-stats":
+			opts["card_stats"] = true
+			i += 1
+			continue
+		if name != "--runs" and name != "--seed" and name != "--policy" and name != "--character" and name != "--card-stats":
 			printerr("run_sim: unknown argument '%s'\n%s" % [name, USAGE])
 			return {}
 		if name == "--character":
@@ -175,6 +191,8 @@ func _play_combat(run: RunState) -> int:
 	if combat == null:
 		return -2
 	var outcome := [0]
+	if _card_stats:
+		combat.card_played.connect(func(card: CardData, _targets: Array[EnemyUnit]) -> void: _plays[card.id] = _plays.get(card.id, 0) + 1)
 	combat.combat_ended.connect(func(victory: bool) -> void: outcome[0] = 1 if victory else -1)
 	combat.start()
 	while combat.phase == Combat.Phase.PLAYER_TURN:
@@ -218,14 +236,14 @@ func _card_score(run: RunState, card: CardData) -> float:
 	var damage_cards := 0
 	var block_cards := 0
 	for owned in run.deck:
-		if _has_effect(owned, CardEffect.Kind.DAMAGE):
+		if SimPolicy.is_damage_card(owned):
 			damage_cards += 1
-		if _has_effect(owned, CardEffect.Kind.BLOCK):
+		if SimPolicy.is_block_card(owned):
 			block_cards += 1
 	var score := -0.001 * card.cost
-	if _has_effect(card, CardEffect.Kind.DAMAGE):
+	if SimPolicy.is_damage_card(card):
 		score += 1.0 / (1 + damage_cards)
-	if _has_effect(card, CardEffect.Kind.BLOCK):
+	if SimPolicy.is_block_card(card):
 		score += 1.0 / (1 + block_cards)
 	return score
 
@@ -259,10 +277,3 @@ func _shop(run: RunState) -> bool:
 			printerr("run_sim: vendor refused an affordable card")
 			return false
 	return run.leave_vendor()
-
-
-func _has_effect(card: CardData, kind: CardEffect.Kind) -> bool:
-	for effect in card.effects:
-		if effect.kind == kind:
-			return true
-	return false

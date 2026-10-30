@@ -39,6 +39,12 @@ const EXPOSE_VALUE := 2.0
 const EXPOSE_FIRST := 8.0 # ordering bonus for an Expose that has damage to boost
 const MIN_DECK := 8
 const REMOVE_BELOW := 0.8
+const THORNS_VALUE := 0.8 # per thorns point per enemy that attacks this turn
+const HAUNT_VALUE := 0.7 # per point of Haunt damage (it lands later, so worth less than a hit)
+const HEAL_VALUE := 1.5 # per HP healed
+## What a typical Block is worth when a card's damage scales with it (Bash, Cold Steel, Reckoning).
+const TYPICAL_BLOCK := 6
+const TYPICAL_HAUNT := 4
 
 
 ## Plays cards until nothing is worth playing or the fight ends, then ends the
@@ -93,13 +99,31 @@ static func _play_value(combat: Combat, hand_index: int, target: int) -> float:
 	var value := 0.0
 	for effect in card.effects:
 		match effect.kind:
-			CardEffect.Kind.DAMAGE:
+			CardEffect.Kind.DAMAGE, CardEffect.Kind.DAMAGE_PER_BLOCK, CardEffect.Kind.DAMAGE_IF_BLOCK, \
+			CardEffect.Kind.DAMAGE_PER_PLAY, CardEffect.Kind.DAMAGE_PER_HAUNT:
 				for enemy in hit:
-					var lost := _hp_lost(enemy, effect.amount)
+					var lost := _hp_lost(enemy, _effect_damage(combat, effect, enemy))
 					var threat := _threat(combat, enemy)
 					value += lost * (1.0 + float(threat) / maxi(enemy.hp, 1))
 					if lost >= enemy.hp:
 						value += 4.0 + 1.5 * threat
+			CardEffect.Kind.HOLD:
+				# Block kept for next turn: worth about a third of useful Block.
+				value += 0.8 * effect.amount
+			CardEffect.Kind.THORNS:
+				value += THORNS_VALUE * effect.amount * _attackers(combat)
+			CardEffect.Kind.GAIN_ENERGY:
+				# Energy only matters while it is what stops me playing cards.
+				value += (2.0 if energy_left < 2 else 0.4) * effect.amount
+			CardEffect.Kind.HAUNT:
+				for enemy in hit:
+					value += HAUNT_VALUE * mini(_haunt_total(effect.amount), enemy.hp)
+			CardEffect.Kind.LOSE_HP:
+				# Dearer the lower the player already is.
+				value -= effect.amount * (1.0 + 12.0 / maxi(combat.player.hp - effect.amount, 1))
+			CardEffect.Kind.HEAL_PER_HAUNTED:
+				var healed := mini(effect.amount * _haunted_count(combat), combat.player.max_hp - combat.player.hp)
+				value += HEAL_VALUE * healed
 			CardEffect.Kind.BLOCK:
 				var useful := mini(effect.amount, unblocked)
 				unblocked -= useful
@@ -118,6 +142,42 @@ static func _play_value(combat: Combat, hand_index: int, target: int) -> float:
 								# It only pays if played before the damage, so rank it first.
 								value += EXPOSE_FIRST
 	return value
+
+
+## The damage `effect` would deal to `enemy` if its card were played now (before Expose and Block).
+static func _effect_damage(combat: Combat, effect: CardEffect, enemy: EnemyUnit) -> int:
+	match effect.kind:
+		CardEffect.Kind.DAMAGE_PER_BLOCK:
+			return combat.player.block * effect.amount
+		CardEffect.Kind.DAMAGE_IF_BLOCK:
+			return effect.bonus if combat.player.block >= effect.threshold else effect.amount
+		CardEffect.Kind.DAMAGE_PER_PLAY:
+			# plays_this_turn counts the cards already played, which is what the bonus scales with.
+			return effect.amount + effect.bonus * combat.plays_this_turn
+		CardEffect.Kind.DAMAGE_PER_HAUNT:
+			return enemy.status_turns(Combatant.Status.HAUNTED) * effect.amount
+	return effect.amount
+
+
+## Total damage of a Haunt of `amount` over its life: amount + (amount - 1) + ... + 1.
+static func _haunt_total(amount: int) -> int:
+	return maxi(amount, 0) * (maxi(amount, 0) + 1) / 2
+
+
+static func _attackers(combat: Combat) -> int:
+	var count := 0
+	for enemy in combat.living_enemies():
+		if _threat(combat, enemy) > 0:
+			count += 1
+	return count
+
+
+static func _haunted_count(combat: Combat) -> int:
+	var count := 0
+	for enemy in combat.living_enemies():
+		if enemy.status_turns(Combatant.Status.HAUNTED) > 0:
+			count += 1
+	return count
 
 
 ## HP `enemy` would lose to a hit of `amount` (after Expose and its own block).
@@ -215,13 +275,12 @@ static func shop(run: RunState) -> bool:
 
 ## Damage and block weights {damage, block} leaning toward what the deck lacks.
 static func _weights(deck: Array[CardData]) -> Dictionary:
-	var damage := 0
+	var damage := 0.0
 	var block := 0
 	for card in deck:
 		for effect in card.effects:
-			if effect.kind == CardEffect.Kind.DAMAGE:
-				damage += effect.amount
-			elif effect.kind == CardEffect.Kind.BLOCK:
+			damage += _nominal_damage(effect)
+			if effect.kind == CardEffect.Kind.BLOCK:
 				block += effect.amount
 	var share := DAMAGE_SHARE if damage + block == 0 else float(damage) / (damage + block)
 	return {
@@ -233,17 +292,48 @@ static func _weights(deck: Array[CardData]) -> Dictionary:
 static func card_score(card: CardData, weights: Dictionary) -> float:
 	var total := 0.0
 	for effect in card.effects:
+		var nominal := _nominal_damage(effect)
+		if nominal > 0.0:
+			var spread := 1.3 if card.target_mode == CardData.TargetMode.ALL_ENEMIES else 1.0
+			total += nominal * weights["damage"] * spread
+			continue
 		match effect.kind:
-			CardEffect.Kind.DAMAGE:
-				var spread := 1.3 if card.target_mode == CardData.TargetMode.ALL_ENEMIES else 1.0
-				total += effect.amount * weights["damage"] * spread
 			CardEffect.Kind.BLOCK:
 				total += effect.amount * weights["block"]
 			CardEffect.Kind.DRAW:
 				total += effect.amount * DRAW_VALUE
 			CardEffect.Kind.EXPOSE:
 				total += effect.amount * EXPOSE_VALUE
+			CardEffect.Kind.HOLD:
+				total += effect.amount * 0.8
+			CardEffect.Kind.THORNS:
+				total += effect.amount * 1.5
+			CardEffect.Kind.GAIN_ENERGY:
+				total += effect.amount * 3.0
+			CardEffect.Kind.LOSE_HP:
+				total -= effect.amount * 1.3
+			CardEffect.Kind.HEAL_PER_HAUNTED:
+				total += effect.amount * HEAL_VALUE
 	return total / (card.cost + 1)
+
+
+## Rough damage an effect is worth in a deck-scoring context (a typical Block, Haunt or number of
+## earlier plays stands in for the state a real fight would supply). 0 for non-damage effects.
+static func _nominal_damage(effect: CardEffect) -> float:
+	match effect.kind:
+		CardEffect.Kind.DAMAGE:
+			return float(effect.amount)
+		CardEffect.Kind.DAMAGE_PER_BLOCK:
+			return float(TYPICAL_BLOCK * effect.amount)
+		CardEffect.Kind.DAMAGE_IF_BLOCK:
+			return (effect.amount + effect.bonus) / 2.0
+		CardEffect.Kind.DAMAGE_PER_PLAY:
+			return float(effect.amount + 2 * effect.bonus)
+		CardEffect.Kind.DAMAGE_PER_HAUNT:
+			return float(TYPICAL_HAUNT * effect.amount)
+		CardEffect.Kind.HAUNT:
+			return HAUNT_VALUE * _haunt_total(effect.amount)
+	return 0.0
 
 
 static func _average_score(deck: Array[CardData], weights: Dictionary) -> float:
