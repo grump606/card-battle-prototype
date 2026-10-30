@@ -77,4 +77,4 @@ Test strategy: run `scripts/check.ps1`, then compare escape rates before and aft
 7. The boss keeps paying nothing.
 8. Keep the reward roll a function of pool and context so elites can reuse it later; build nothing for them now.
 
-Status: design A implemented; C not started.
+Status: designs A and C implemented.

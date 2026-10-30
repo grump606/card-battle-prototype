@@ -21,6 +21,7 @@ func run() -> int:
 	_test_version_mismatch()
 	_test_bad_fields()
 	_test_offered_ids()
+	_test_reward_alternative_flags()
 	_test_save_refused_mid_flight()
 	_cleanup()
 	return _failures
@@ -209,6 +210,26 @@ func _test_offered_ids() -> void:
 		var data := RunSave.to_dict(RunState.new(3))
 		data["offered"] = bad
 		_check(RunSave.from_dict(data).run == null, "offered = %s is rejected" % JSON.stringify(bad))
+
+
+func _test_reward_alternative_flags() -> void:
+	var state := RunState.new(7)
+	state.reward_remove_used = true
+	var copy := _clone(state)
+	_check(copy != null and copy.reward_remove_used and not copy.reward_heal_used, "the used flags survive a save round trip")
+	state.reward_heal_used = true
+	copy = _clone(state)
+	_check(copy != null and copy.reward_remove_used and copy.reward_heal_used, "both used flags survive a save round trip")
+	var old := RunSave.to_dict(RunState.new(3))
+	old.erase("reward_remove_used")
+	old.erase("reward_heal_used")
+	var loaded := RunSave.from_dict(old)
+	_check(loaded.run != null and not loaded.run.reward_remove_used and not loaded.run.reward_heal_used, "a save without the flags loads as not used")
+	for key in ["reward_remove_used", "reward_heal_used"]:
+		for bad in ["true", 1, null, [true]]:
+			var data := RunSave.to_dict(RunState.new(3))
+			data[key] = bad
+			_check(RunSave.from_dict(data).run == null, "%s = %s is rejected" % [key, JSON.stringify(bad)])
 
 
 func _test_save_refused_mid_flight() -> void:

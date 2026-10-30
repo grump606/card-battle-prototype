@@ -40,6 +40,8 @@ func _initialize() -> void:
 	_card_stats = opts["card_stats"]
 
 	var escapes := 0
+	var heals_used := 0
+	var removes_used := 0
 	var stalls := 0
 	var escape_hp := 0
 	var escape_deck := 0
@@ -97,6 +99,8 @@ func _initialize() -> void:
 					printerr("run_sim: unsupported stop type %d at stop %d (%s)" % [stop.type, index, stop.describe()])
 					quit(1)
 					return
+		heals_used += 1 if run.reward_heal_used else 0
+		removes_used += 1 if run.reward_remove_used else 0
 		if run.escaped:
 			escapes += 1
 			escape_hp += run.player.hp
@@ -109,6 +113,7 @@ func _initialize() -> void:
 	var start_hp := StarterContent.character(_character).max_hp
 	print("Run sim: %d runs, seed %d, character %s, policy %s, player HP %d, turn cap %d" % [runs, base_seed, _character, "smart" if _smart else "greedy", start_hp, TURN_CAP])
 	print("Escape rate: %d/%d (%.1f%%)" % [escapes, runs, 100.0 * escapes / runs])
+	print("Free reward alternatives used: Heal in %d/%d runs, Remove in %d/%d runs" % [heals_used, runs, removes_used, runs])
 	print("Stalls (fight abandoned at turn cap, run counted lost): %d" % stalls)
 	if escapes > 0:
 		print("On escapes: avg final HP %.2f, avg deck size %.2f" % [float(escape_hp) / escapes, float(escape_deck) / escapes])
@@ -208,9 +213,9 @@ func _play_combat(run: RunState) -> int:
 ## Takes the best offered card per the header heuristic. False on a RunState failure.
 func _take_reward(run: RunState) -> bool:
 	if _smart:
-		# A null pick skips the reward.
-		if not run.resolve_reward(SmartPolicy.pick_reward(run)):
-			printerr("run_sim: resolve_reward rejected the smart policy's pick")
+		# A null pick skips the reward; the policy may also use a free Heal or Remove instead.
+		if not SmartPolicy.take_reward(run):
+			printerr("run_sim: the run rejected the smart policy's reward choice")
 			return false
 		return true
 	var choices := run.reward_choices()

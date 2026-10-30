@@ -13,6 +13,8 @@ var _run: RunState
 var _vendor_message := ""
 ## True while the vendor panel shows the pick-a-card-to-remove list.
 var _removing := false
+## True while the reward panel shows the pick-a-card-to-remove list.
+var _reward_removing := false
 ## Where the in-progress run is saved; tests point this at a scratch file.
 var save_path := RunSave.DEFAULT_PATH
 ## One-off message shown above the header line: a bad save on launch, or a save/delete failure.
@@ -53,6 +55,7 @@ func _continue_run(saved: RunState) -> void:
 	_run = saved
 	_vendor_message = ""
 	_removing = false
+	_reward_removing = false
 	_clear_body()
 	_show_stop()
 
@@ -83,6 +86,7 @@ func _start_run(character_id: StringName) -> void:
 	_run = RunState.new(randi(), character_id)
 	_vendor_message = ""
 	_removing = false
+	_reward_removing = false
 	_show_stop()
 
 
@@ -191,15 +195,45 @@ func _on_fight_finished(victory: bool) -> void:
 
 
 func _show_reward() -> void:
+	if _reward_removing:
+		var picker := _panel("Pick a card to remove from your deck.")
+		_show_remove_picker(picker, _reward_remove_card, _cancel_reward_removing)
+		return
 	var box := _panel("Victory. Take a card for your deck, or skip.")
 	for card in _run.reward_choices():
 		var button := _add_button(box, "%s (%d)\n%s" % [card.display_name, card.cost, card.describe()], _take_reward.bind(card))
 		button.custom_minimum_size = Vector2(260, 56)
 	_add_button(box, "Skip (+%d gold)" % RunState.SKIP_GOLD, _take_reward.bind(null))
+	# Once-per-run alternatives: hidden once used (Heal also while at full HP).
+	if _run.can_reward_remove():
+		_add_button(box, "Remove a card (free, once)", _start_reward_removing)
+	if _run.can_reward_heal():
+		_add_button(box, "Heal %d HP (free, once)" % RunState.REWARD_HEAL, _reward_heal)
 
 
 func _take_reward(card: CardData) -> void:
 	_run.resolve_reward(card)
+	_show_stop()
+
+
+func _start_reward_removing() -> void:
+	_reward_removing = true
+	_show_stop()
+
+
+func _cancel_reward_removing() -> void:
+	_reward_removing = false
+	_show_stop()
+
+
+func _reward_remove_card(deck_index: int) -> void:
+	_reward_removing = false
+	_run.resolve_reward_remove(_run.deck[deck_index])
+	_show_stop()
+
+
+func _reward_heal() -> void:
+	_run.resolve_reward_heal()
 	_show_stop()
 
 
@@ -233,7 +267,7 @@ func _show_vendor() -> void:
 		message.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		box.add_child(message)
 	if _removing:
-		_show_remove_picker(box)
+		_show_remove_picker(box, _remove_card, _cancel_removing)
 		return
 	var offers := vendor.offers()
 	for i in offers.size():
@@ -252,13 +286,13 @@ func _show_vendor() -> void:
 	_add_button(box, "Leave", _leave_vendor)
 
 
-func _show_remove_picker(box: VBoxContainer) -> void:
+func _show_remove_picker(box: VBoxContainer, on_pick: Callable, on_cancel: Callable) -> void:
 	var grid := GridContainer.new()
 	grid.columns = 4
 	box.add_child(grid)
 	for i in _run.deck.size():
-		_add_button(grid, _run.deck[i].display_name, _remove_card.bind(i))
-	_add_button(box, "Cancel", _cancel_removing)
+		_add_button(grid, _run.deck[i].display_name, on_pick.bind(i))
+	_add_button(box, "Cancel", on_cancel)
 
 
 func _buy_card(offer_index: int) -> void:

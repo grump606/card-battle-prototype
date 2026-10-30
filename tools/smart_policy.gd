@@ -31,7 +31,8 @@ extends RefCounted
 ## the vendor it heals first (same rule as greedy), buys any card scoring above
 ## the deck average (best first, while gold allows), then removes the weakest card
 ## (once, if gold remains, the deck has more than MIN_DECK cards and the card
-## scores below REMOVE_BELOW x the average).
+## scores below REMOVE_BELOW x the average). At a reward it may instead use the once-per-run
+## free Heal or Remove (see take_reward).
 
 const DAMAGE_SHARE := 0.55
 const DRAW_VALUE := 2.5
@@ -39,6 +40,8 @@ const EXPOSE_VALUE := 2.0
 const EXPOSE_FIRST := 8.0 # ordering bonus for an Expose that has damage to boost
 const MIN_DECK := 8
 const REMOVE_BELOW := 0.8
+## The free reward Heal is used while HP is below this share of max HP.
+const HEAL_BELOW := 0.5
 const THORNS_VALUE := 0.8 # per thorns point per enemy that attacks this turn
 const HAUNT_VALUE := 0.7 # per point of Haunt damage (it lands later, so worth less than a hit)
 const HEAL_VALUE := 1.5 # per HP healed
@@ -229,6 +232,22 @@ static func pick_reward(run: RunState) -> CardData:
 	if best == null or best_score < _average_score(run.deck, weights):
 		return null
 	return best
+
+
+## Resolves the pending reward: the free Heal when HP is under HEAL_BELOW of max, else the
+## free Remove (on the weakest deck card) when even the best offered card scores below the
+## deck average, else pick_reward. Each alternative is used only while unused. False if rejected.
+static func take_reward(run: RunState) -> bool:
+	if run.can_reward_heal() and run.player.hp < HEAL_BELOW * run.player.max_hp:
+		return run.resolve_reward_heal()
+	if run.can_reward_remove() and run.deck.size() > MIN_DECK and pick_reward(run) == null:
+		var weights := _weights(run.deck)
+		var weakest: CardData = run.deck[0]
+		for card in run.deck:
+			if card_score(card, weights) < card_score(weakest, weights):
+				weakest = card
+		return run.resolve_reward_remove(weakest)
+	return run.resolve_reward(pick_reward(run))
 
 
 ## Vendor visit per the header. False on a RunState failure.

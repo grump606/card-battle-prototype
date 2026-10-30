@@ -18,6 +18,8 @@ const REWARD_CLASS_CHOICES := 2
 const COPY_CAP := 2
 ## Gold paid for skipping a card reward.
 const SKIP_GOLD := 10
+## HP restored by the reward screen's Heal alternative (never past max HP).
+const REWARD_HEAL := 12
 
 ## One stop on the line. `enemy_count` only matters for COMBAT stops and
 ## `beat_index` (into StoryContent) only for STORY stops. A COMBAT stop with
@@ -66,6 +68,10 @@ var gold: int = 0
 ## Ids of every card shown at a card reward so far this run; later rewards avoid them
 ## (see _roll_rewards). Saved with the run.
 var offered_ids: Array[StringName] = []
+## The reward screen's free Remove and Heal alternatives: each may be used once per run.
+## Saved with the run.
+var reward_remove_used := false
+var reward_heal_used := false
 
 var _vendor: Vendor = null
 var _active_combat: Combat = null
@@ -173,10 +179,52 @@ func resolve_reward(card: CardData) -> bool:
 		deck.append(card)
 	else:
 		gold += SKIP_GOLD
+	_finish_reward()
+	return true
+
+
+## Whether the free Remove alternative can be taken now: a reward is pending, it is unused,
+## and the deck keeps at least one card (the vendor's rule).
+func can_reward_remove() -> bool:
+	return _reward_pending and not finished and not reward_remove_used and deck.size() > 1
+
+
+## Whether the free Heal alternative can be taken now: a reward is pending, it is unused
+## and the player is hurt.
+func can_reward_heal() -> bool:
+	return _reward_pending and not finished and not reward_heal_used and player.hp < player.max_hp
+
+
+## Resolves the reward by removing one copy of `card` from the deck (no card, no skip gold).
+## Rejects a card not in the deck, a used alternative or a deck that would be emptied.
+func resolve_reward_remove(card: CardData) -> bool:
+	if not can_reward_remove():
+		return false
+	var index := deck.find(card)
+	if index == -1:
+		push_error("RunState.resolve_reward_remove: card is not in the deck")
+		return false
+	deck.remove_at(index)
+	reward_remove_used = true
+	_finish_reward()
+	return true
+
+
+## Resolves the reward by healing REWARD_HEAL HP, capped at max HP (no card, no skip gold).
+## Rejects a used alternative or a player at full HP.
+func resolve_reward_heal() -> bool:
+	if not can_reward_heal():
+		return false
+	player.heal(REWARD_HEAL)
+	reward_heal_used = true
+	_finish_reward()
+	return true
+
+
+func _finish_reward() -> void:
 	_reward_pending = false
 	_reward_choices = []
 	_advance()
-	return true
 
 
 ## Heals at a REST stop and moves on. Returns HP restored, or -1 if not at a rest stop.

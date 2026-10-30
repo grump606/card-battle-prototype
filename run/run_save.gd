@@ -54,6 +54,8 @@ static func to_dict(run: RunState) -> Dictionary:
 		"line": line_signature(run),
 		"deck": ids,
 		"offered": offered,
+		"reward_remove_used": run.reward_remove_used,
+		"reward_heal_used": run.reward_heal_used,
 		# A string: JSON numbers are doubles and would round a 64-bit state.
 		"rng_state": str(run.rng_state()),
 	}
@@ -117,7 +119,13 @@ static func from_dict(data: Variant) -> Result:
 			if typeof(entry) != TYPE_STRING or not known.has(entry) or offered.has(StringName(entry)):
 				return Result.fail("offered list has an unknown or repeated card")
 			offered.append(StringName(entry))
+	# Also added later: a save without the flags is a run that used neither alternative.
+	for key in ["reward_remove_used", "reward_heal_used"]:
+		if d.has(key) and typeof(d[key]) != TYPE_BOOL:
+			return Result.fail("bad %s" % key)
 	run.offered_ids = offered
+	run.reward_remove_used = d.get("reward_remove_used", false)
+	run.reward_heal_used = d.get("reward_heal_used", false)
 	run.player = Combatant.new(run.character.display_name, max_hp, hp)
 	run.deck = deck
 	run.gold = gold

@@ -13,6 +13,7 @@ func run() -> int:
 	_test_exposes_before_damage()
 	_test_plays_whole_runs_without_illegal_moves()
 	_test_card_scoring_order()
+	_test_reward_alternatives()
 	return _failures
 
 
@@ -89,6 +90,38 @@ func _test_card_scoring_order() -> void:
 	var strong := _card(&"strong", 1, CardEffect.Kind.DAMAGE, 30)
 	var weights := SmartPolicy._weights(run.deck)
 	_check(SmartPolicy.card_score(weak, weights) < SmartPolicy.card_score(strong, weights), "scoring ranks a stronger card higher")
+
+
+## The smart bot heals when under half HP and removes its weakest card instead of skipping, once each.
+func _test_reward_alternatives() -> void:
+	var low := RunState.new(21)
+	low.read_story()
+	low.complete_combat(true)
+	low.player.hp = low.player.max_hp / 2 - 1
+	_check(SmartPolicy.take_reward(low) and low.reward_heal_used and not low.reward_remove_used and low.deck.size() == low.character.starting_deck.size(), "smart heals below half HP instead of taking a card")
+	low.complete_combat(true)
+	low.player.hp = 1
+	_check(SmartPolicy.take_reward(low) and low.player.hp == 1, "smart does not heal twice")
+
+	# Remove: a deck of strong cards plus one dud, offered nothing better than the average.
+	var run := RunState.new(22)
+	run.read_story()
+	run.complete_combat(true)
+	var strong := _card(&"strong", 1, CardEffect.Kind.DAMAGE, 30)
+	var dud := _card(&"dud", 2, CardEffect.Kind.DAMAGE, 1)
+	var deck: Array[CardData] = []
+	for i in SmartPolicy.MIN_DECK:
+		deck.append(strong)
+	deck.append(dud)
+	run.deck = deck
+	run._reward_choices.assign([dud, dud, dud])
+	_check(SmartPolicy.take_reward(run), "smart resolves the reward")
+	_check(run.reward_remove_used and not run.reward_heal_used and not run.deck.has(dud) and run.deck.size() == SmartPolicy.MIN_DECK, "smart removes its weakest card when nothing offered beats the average")
+	run.complete_combat(true)
+	run.deck.append(dud)
+	run._reward_choices.assign([dud, dud, dud])
+	var gold := run.gold
+	_check(SmartPolicy.take_reward(run) and run.deck.has(dud) and run.gold == gold + RunState.SKIP_GOLD, "with Remove spent it falls back to skipping")
 
 
 func _fx(kind: CardEffect.Kind, amount: int, bonus: int = 0, threshold: int = 0) -> CardEffect:

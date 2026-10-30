@@ -29,6 +29,7 @@ func run() -> int:
 	_test_survivors_from_mutation_audit()
 	_test_boss_stop()
 	_test_reward_memory_and_skip_gold()
+	_test_reward_alternatives()
 	return _failures
 
 
@@ -211,6 +212,67 @@ func _test_reward_memory_and_skip_gold() -> void:
 	taker.resolve_reward(taker.reward_choices()[0])
 	_check(taker.gold == taker_gold, "taking a card pays no skip gold")
 	_check(not skipper.resolve_reward(null) and skipper.gold == gold_before + RunState.SKIP_GOLD, "a second skip pays nothing")
+
+
+## The once-per-run free Heal and Remove at a reward: effects, rejections, no skip gold, advance.
+func _test_reward_alternatives() -> void:
+	# Nothing pending: both rejected and nothing changes.
+	var idle := _at_first_fight(11)
+	idle.player.hp = 10
+	var idle_deck := idle.deck.size()
+	_check(not idle.resolve_reward_heal() and not idle.resolve_reward_remove(idle.deck[0]), "alternatives are rejected with no reward pending")
+	_check(idle.player.hp == 10 and idle.deck.size() == idle_deck and not idle.reward_heal_used and not idle.reward_remove_used, "a rejected alternative changes nothing")
+
+	# Heal: restores REWARD_HEAL, pays no skip gold, advances, once only.
+	var healer := _at_first_fight(11)
+	healer.complete_combat(true)
+	healer.player.hp = healer.player.max_hp - 20
+	var gold := healer.gold
+	var offered := healer.offered_ids.size()
+	_check(healer.resolve_reward_heal(), "heal is accepted")
+	_check(healer.player.hp == healer.player.max_hp - 20 + RunState.REWARD_HEAL, "heal restores REWARD_HEAL HP")
+	_check(healer.gold == gold and healer.stop_index == 2 and not healer.reward_pending() and healer.deck.size() == idle_deck, "heal pays no skip gold, adds no card and advances")
+	_check(healer.reward_heal_used and healer.offered_ids.size() == offered, "heal is marked used")
+	healer.complete_combat(true)  # stop 2 is a combat stop too
+	healer.player.hp = 5
+	_check(not healer.resolve_reward_heal() and healer.player.hp == 5 and healer.reward_pending(), "a second heal is rejected and the reward stays pending")
+	_check(healer.resolve_reward(null), "the pending reward can still be resolved normally")
+
+	# Heal never overheals and is rejected at full HP (the reward stays pending).
+	var capped := _at_first_fight(12)
+	capped.complete_combat(true)
+	capped.player.hp = capped.player.max_hp - 5
+	capped.resolve_reward_heal()
+	_check(capped.player.hp == capped.player.max_hp, "heal is capped at max HP")
+	var full := _at_first_fight(12)
+	full.complete_combat(true)
+	_check(not full.resolve_reward_heal() and full.reward_pending() and not full.reward_heal_used, "heal is rejected at full HP and stays unused")
+
+	# Remove: deletes exactly one copy, pays no skip gold, advances, once only.
+	var remover := _at_first_fight(13)
+	remover.complete_combat(true)
+	var target := remover.deck[0]
+	var copies := remover.deck.count(target)
+	gold = remover.gold
+	var stranger := CardData.make(&"not_in_deck", "Nope", 1, [CardEffect.make(CardEffect.Kind.DAMAGE, 1)])
+	_check(not remover.resolve_reward_remove(stranger) and remover.reward_pending() and not remover.reward_remove_used, "removing a card that is not in the deck is rejected")
+	var size := remover.deck.size()
+	_check(remover.resolve_reward_remove(target), "remove is accepted")
+	_check(remover.deck.size() == size - 1 and remover.deck.count(target) == copies - 1, "remove deletes exactly one copy")
+	_check(remover.gold == gold and remover.stop_index == 2 and not remover.reward_pending() and remover.reward_remove_used, "remove pays no skip gold, advances and is marked used")
+	remover.complete_combat(true)
+	_check(not remover.resolve_reward_remove(remover.deck[0]) and remover.deck.size() == size - 1 and remover.reward_pending(), "a second remove is rejected")
+
+	# The deck is never emptied (the vendor's rule).
+	var lone := _at_first_fight(14)
+	lone.complete_combat(true)
+	lone.deck.assign([lone.deck[0]])
+	_check(not lone.resolve_reward_remove(lone.deck[0]) and lone.deck.size() == 1 and lone.reward_pending(), "the last card cannot be removed")
+
+	# After the run ends, neither works.
+	var dead := _at_first_fight(15)
+	dead.complete_combat(false)
+	_check(not dead.resolve_reward_heal() and not dead.resolve_reward_remove(dead.deck[0]), "no alternative after the run finished")
 
 
 func _test_rest() -> void:

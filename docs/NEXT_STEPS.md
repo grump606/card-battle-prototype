@@ -11,7 +11,7 @@ Last updated at the end of the classes work. Everything below is on `main` and p
 ## To do, in the order I would take it
 
 1. **Playtest each class** and say how it feels. The numbers are tuned against bots, not people. Watch the Deserter (the skill-sensitive one) and the Medium (very HP-sensitive: 38 to 48 HP moved it from 28% to 68%).
-2. **Card rewards rework** (you said rewards could use work). A proposal is in `docs/REWARDS_PROPOSAL.md`; it needs your answers to its open questions.
+2. **Card rewards**: designs A and C are in (no repeats, skip gold, free once-per-run Remove and Heal). The smart bot got about 7 points easier from C; retune `REWARD_HEAL` etc. after playtesting. See `docs/REWARDS_PROPOSAL.md`.
 3. **Pause screen artwork** ("full cut scene"). Not designed yet.
 
 ## Smaller open items

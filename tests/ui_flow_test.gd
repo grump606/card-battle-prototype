@@ -332,6 +332,45 @@ func _initialize() -> void:
 	await process_frame
 	_check(pause_scene._run.stop_index == 0 and pause_scene._run.character.id == &"deserter", "picking a character after abandoning starts a fresh run")
 
+	# The reward screen's once-per-run Remove and Heal buttons.
+	var alt := RunState.new(9)
+	alt.read_story()
+	alt.complete_combat(true)
+	pause_scene._run = alt
+	pause_scene._show_stop()
+	await process_frame
+	var alt_body: Control = pause_scene.get_node("%Body")
+	_check(_find(alt_body, "Remove a card") != null and _find(alt_body, "Heal") == null, "a reward at full HP offers Remove but not Heal")
+	alt.player.hp = alt.player.max_hp - 20
+	pause_scene._show_stop()
+	await process_frame
+	_check(_find(alt_body, "Heal %d HP" % RunState.REWARD_HEAL) != null, "a hurt player's reward offers Heal")
+	_find(alt_body, "Remove a card").pressed.emit()
+	await process_frame
+	_check(alt.reward_pending() and _find(alt_body, "Cancel") != null and _find(alt_body, "Skip") == null, "Remove opens the deck picker")
+	_find(alt_body, "Cancel").pressed.emit()
+	await process_frame
+	_check(alt.reward_pending() and _find(alt_body, "Skip") != null, "Cancel returns to the reward")
+	_find(alt_body, "Remove a card").pressed.emit()
+	await process_frame
+	var alt_deck := alt.deck.size()
+	_first_enabled(alt_body).pressed.emit()
+	await process_frame
+	_check(alt.deck.size() == alt_deck - 1 and alt.reward_remove_used and not alt.reward_pending() and alt.stop_index == 2, "picking a card removes it and resolves the reward")
+	alt.complete_combat(true)
+	pause_scene._show_stop()
+	await process_frame
+	_check(_find(alt_body, "Remove a card") == null and _find(alt_body, "Heal") != null, "Remove is gone once used; Heal remains")
+	var hp_before_heal := alt.player.hp
+	_find(alt_body, "Heal").pressed.emit()
+	await process_frame
+	_check(alt.player.hp == hp_before_heal + RunState.REWARD_HEAL and alt.reward_heal_used and not alt.reward_pending(), "Heal restores HP and resolves the reward")
+	alt.stop_index = 5  # a combat stop; a reward again
+	alt.complete_combat(true)
+	pause_scene._show_stop()
+	await process_frame
+	_check(_find(alt_body, "Remove a card") == null and _find(alt_body, "Heal") == null, "neither button shows once both are used")
+
 	# No Pause button once the run is over.
 	var done := RunState.new(4)
 	done.finished = true
