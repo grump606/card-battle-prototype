@@ -5,7 +5,7 @@ extends RefCounted
 
 signal changed
 
-enum Status { EXPOSED }
+enum Status { EXPOSED, HAUNTED }
 
 ## EXPOSED multiplies incoming damage by 3/2, rounded down.
 const EXPOSED_NUM := 3
@@ -112,6 +112,14 @@ func damage_after_status(amount: int) -> int:
 	if amount > 0 and status_turns(Status.EXPOSED) > 0:
 		amount = maxi(amount * EXPOSED_NUM / EXPOSED_DEN, 1)
 	return amount
+
+
+## Loses HP directly: Block and Expose do not apply. Returns the HP actually lost.
+func lose_hp(amount: int) -> int:
+	var lost := mini(maxi(amount, 0), hp)
+	hp -= lost
+	changed.emit()
+	return lost
 
 
 ## Returns the HP actually lost.

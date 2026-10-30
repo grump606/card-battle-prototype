@@ -152,6 +152,9 @@ func _status_tooltip(combatant: Combatant) -> String:
 	var exposed := combatant.status_turns(Combatant.Status.EXPOSED)
 	if exposed > 0:
 		lines.append(EXPOSED_TOOLTIP % exposed)
+	var haunted := combatant.status_turns(Combatant.Status.HAUNTED)
+	if haunted > 0:
+		lines.append("Haunt %d: takes %d damage at the start of the enemy phase (ignoring Block), then Haunt falls by 1." % [haunted, haunted])
 	if combatant.hold > 0:
 		lines.append("Hold %d: up to %d of the Block you have left is kept for your next turn." % [combatant.hold, combatant.hold])
 	if combatant.thorns > 0:
@@ -199,6 +202,9 @@ func _status_text(combatant: Combatant) -> String:
 	var exposed := combatant.status_turns(Combatant.Status.EXPOSED)
 	if exposed > 0:
 		text += "  Exposed %d" % exposed
+	var haunted := combatant.status_turns(Combatant.Status.HAUNTED)
+	if haunted > 0:
+		text += "  Haunt %d" % haunted
 	if combatant.hold > 0:
 		text += "  Hold %d" % combatant.hold
 	if combatant.thorns > 0:

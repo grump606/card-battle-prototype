@@ -108,6 +108,8 @@ func can_play(hand_index: int) -> bool:
 		and hand_index >= 0
 		and hand_index < piles.hand.size()
 		and piles.hand[hand_index].cost <= energy
+		# A card that costs HP cannot be the one that kills the player.
+		and piles.hand[hand_index].hp_cost() < player.hp
 		and plays_this_turn < MAX_PLAYS_PER_TURN
 	)
 
@@ -134,7 +136,7 @@ func play_card(hand_index: int, target_index: int = -1) -> bool:
 	plays_this_turn += 1
 	for effect in card.effects:
 		match effect.kind:
-			CardEffect.Kind.DAMAGE, CardEffect.Kind.DAMAGE_PER_BLOCK, CardEffect.Kind.DAMAGE_IF_BLOCK, CardEffect.Kind.DAMAGE_PER_PLAY:
+			CardEffect.Kind.DAMAGE, CardEffect.Kind.DAMAGE_PER_BLOCK, CardEffect.Kind.DAMAGE_IF_BLOCK, CardEffect.Kind.DAMAGE_PER_PLAY, CardEffect.Kind.HAUNT, CardEffect.Kind.DAMAGE_PER_HAUNT:
 				for target in targets:
 					_apply(effect, player, target)
 			CardEffect.Kind.EXPOSE:
@@ -156,6 +158,11 @@ func end_player_turn() -> void:
 		return
 	phase = Phase.ENEMY_TURN
 	piles.discard_hand()
+	# Haunt hurts first, so an enemy it kills never acts.
+	for enemy in living_enemies():
+		enemy.lose_hp(enemy.status_turns(Combatant.Status.HAUNTED))
+	if _check_end():
+		return
 	for enemy in living_enemies():
 		enemy.clear_block()
 		var intent := enemy.current_intent()
@@ -176,6 +183,14 @@ func end_player_turn() -> void:
 		player.apply_status(Combatant.Status.EXPOSED, _pending_player_expose)
 		_pending_player_expose = 0
 	_begin_player_turn()
+
+
+func _haunted_count() -> int:
+	var count := 0
+	for enemy in living_enemies():
+		if enemy.status_turns(Combatant.Status.HAUNTED) > 0:
+			count += 1
+	return count
 
 
 func _resolve_target(target_index: int) -> EnemyUnit:
@@ -221,6 +236,15 @@ func _apply(effect: CardEffect, source: Combatant, target: Combatant) -> void:
 		CardEffect.Kind.DAMAGE_PER_PLAY:
 			# plays_this_turn already counts the card being played.
 			target.take_damage(effect.amount + effect.bonus * maxi(plays_this_turn - 1, 0))
+		CardEffect.Kind.HAUNT:
+			if source == player:
+				target.apply_status(Combatant.Status.HAUNTED, effect.amount)
+		CardEffect.Kind.LOSE_HP:
+			source.lose_hp(effect.amount)
+		CardEffect.Kind.HEAL_PER_HAUNTED:
+			source.heal(effect.amount * _haunted_count())
+		CardEffect.Kind.DAMAGE_PER_HAUNT:
+			target.take_damage(target.status_turns(Combatant.Status.HAUNTED) * effect.amount)
 		CardEffect.Kind.BLOCK:
 			source.gain_block(effect.amount)
 		CardEffect.Kind.DRAW:

@@ -25,6 +25,15 @@ static func make(card_id: StringName, card_name: String, card_cost: int, card_ef
 	return card
 
 
+## HP the card costs to play (the sum of its LOSE_HP effects).
+func hp_cost() -> int:
+	var total := 0
+	for effect in effects:
+		if effect.kind == CardEffect.Kind.LOSE_HP:
+			total += maxi(effect.amount, 0)
+	return total
+
+
 func describe() -> String:
 	var parts: PackedStringArray = []
 	for effect in effects:

@@ -1,6 +1,6 @@
 # Classes build plan
 
-Three playable characters (Deserter, Pickpocket, Medium), each with a class card pool, sharing a neutral pool. Status: Phases 1 (character infrastructure), 2 (character select screen), 3 (Deserter mechanics and cards) and 4 (Pickpocket mechanics and cards) done; Phases 5 to 7 not started. Interim sim numbers (300 runs, seed 1): Deserter greedy 81% / smart 96% (far too easy), Pickpocket greedy 52% / smart 63%. The bots do not yet understand the new cards; Phase 6 retunes. Card numbers are first drafts for the sim to tune.
+Three playable characters (Deserter, Pickpocket, Medium), each with a class card pool, sharing a neutral pool. Status: Phases 1 (character infrastructure), 2 (character select screen), 3 (Deserter), 4 (Pickpocket) and 5 (Medium) mechanics and cards done; Phases 6 and 7 not started. Interim sim numbers (300 runs, seed 1, greedy / smart): Deserter 81% / 96% (far too easy), Pickpocket 52% / 63%, Medium 51% / 21%. The bots do not yet understand the new cards (the smart bot plays the Medium badly), so these are not trustworthy; Phase 6 teaches the bots and retunes. Card numbers are first drafts for the sim to tune.
 
 ## Decisions assumed (change any before Phase 1)
 

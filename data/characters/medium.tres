@@ -5,9 +5,10 @@
 [ext_resource type="Resource" path="res://data/cards/shove.tres" id="3_shove"]
 [ext_resource type="Resource" path="res://data/cards/slip_past.tres" id="4_slip_past"]
 [ext_resource type="Resource" path="res://data/cards/glimpse_exit.tres" id="5_glimpse_exit"]
-[ext_resource type="Resource" path="res://data/cards/brace.tres" id="6_brace"]
-[ext_resource type="Resource" path="res://data/cards/flurry.tres" id="7_flurry"]
-[ext_resource type="Resource" path="res://data/cards/sweep.tres" id="8_sweep"]
+[ext_resource type="Resource" path="res://data/cards/confess.tres" id="6_confess"]
+[ext_resource type="Resource" path="res://data/cards/lingering_dread.tres" id="7_lingering_dread"]
+[ext_resource type="Resource" path="res://data/cards/penance.tres" id="8_penance"]
+[ext_resource type="Resource" path="res://data/cards/cold_whisper.tres" id="9_cold_whisper"]
 
 [resource]
 script = ExtResource("1_char")
@@ -15,4 +16,4 @@ id = &"medium"
 display_name = "The Medium"
 pitch = "Heard the dead before joining them. Pays in blood to haunt the living."
 max_hp = 48
-starting_deck = Array[ExtResource("2_card")]([ExtResource("3_shove"), ExtResource("3_shove"), ExtResource("3_shove"), ExtResource("4_slip_past"), ExtResource("4_slip_past"), ExtResource("5_glimpse_exit"), ExtResource("6_brace"), ExtResource("7_flurry"), ExtResource("8_sweep"), ExtResource("4_slip_past")])
+starting_deck = Array[ExtResource("2_card")]([ExtResource("3_shove"), ExtResource("3_shove"), ExtResource("3_shove"), ExtResource("4_slip_past"), ExtResource("4_slip_past"), ExtResource("5_glimpse_exit"), ExtResource("6_confess"), ExtResource("7_lingering_dread"), ExtResource("8_penance"), ExtResource("9_cold_whisper")])
