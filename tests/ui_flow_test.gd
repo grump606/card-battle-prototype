@@ -33,6 +33,13 @@ func _all_text(node: Node) -> String:
 	return text
 
 
+func _find_panels(node: Node, out: Array[CharacterPanel]) -> void:
+	if node is CharacterPanel:
+		out.append(node)
+	for child in node.get_children():
+		_find_panels(child, out)
+
+
 func _first_enabled(body: Node) -> Button:
 	var found: Array = []
 	_buttons(body, found)
@@ -77,6 +84,36 @@ func _initialize() -> void:
 		var character := StarterContent.character(id)
 		_check(select_text.contains(character.display_name) and select_text.contains("%d HP" % character.max_hp) and select_text.contains(character.pitch), "the select screen shows %s with HP and pitch" % id)
 	_check(select_text.contains("3 Shove") and select_text.contains("Starting deck"), "the select screen shows each starting deck")
+	# One bordered panel per character, the group centred in the window, a focusable Play button each.
+	await process_frame
+	var panels: Array[CharacterPanel] = []
+	_find_panels(body, panels)
+	_check(panels.size() == StarterContent.character_ids().size(), "the select screen has one panel per character")
+	var group := Rect2()
+	for i in panels.size():
+		var panel := panels[i]
+		_check(panel.character_id == StarterContent.character_ids()[i], "panel %d is %s, in selection order" % [i, StarterContent.character_ids()[i]])
+		_check(panel.border_color().a > 0.0 and CharacterPanel.BORDER_WIDTH > 0 and panel.class_id == panel.character_id, "%s has a border in its class palette" % panel.character_id)
+		_check(panel.play_button.focus_mode == Control.FOCUS_ALL and panel.play_button.text == "Play as %s" % StarterContent.character(panel.character_id).display_name, "%s has a keyboard-focusable Play button" % panel.character_id)
+		group = panel.get_global_rect() if i == 0 else group.merge(panel.get_global_rect())
+	var window := scene.get_global_rect()
+	_check(absf(group.get_center().x - window.get_center().x) <= 3.0 and absf(group.get_center().y - window.get_center().y) <= 3.0, "the panels are centred in the window (group %s, window %s)" % [group, window])
+	_check(group.position.x >= 0.0 and group.end.x <= window.end.x and group.position.y >= 0.0 and group.end.y <= window.end.y, "the panels fit inside the window")
+	_check(panels[0].play_button.has_focus(), "the first Play button has keyboard focus on opening")
+	panels[1].set_hovered(true)
+	_check(panels[1].is_lit() and panels[1].scale.x > 1.0 and panels[1].border_color() != panels[0].border_color(), "a hovered panel lights up")
+	panels[1].set_hovered(false)
+	_check(not panels[1].is_lit() and panels[1].scale == Vector2.ONE, "an un-hovered panel settles back")
+	# A panel built for an unknown, empty or missing character does not error and stays usable.
+	var odd := Character.new()
+	odd.id = &"nobody"
+	for stray in [CharacterPanel.new(odd), CharacterPanel.new(Character.new()), CharacterPanel.new(null)]:
+		root.add_child(stray)
+		await process_frame
+		stray.set_hovered(true)
+		await process_frame
+		_check(stray.class_id == &"" and stray.size.x > 0.0 and stray.play_button != null, "a panel for an unknown or empty character builds with the neutral palette")
+		stray.queue_free()
 	_find(body, "Play as The Deserter").pressed.emit()
 	await process_frame
 	_check(scene._run != null and scene._run.character.id == &"deserter" and scene._run.stop_index == 0, "picking the Deserter starts a Deserter run")

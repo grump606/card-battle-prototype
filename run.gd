@@ -9,9 +9,7 @@ const BATTLE_SCENE := preload("res://battle.tscn")
 ## the character select screen use small cards (their names are also in tooltips and labels).
 const OFFER_CARD_SCALE := 1.2
 const PICKER_CARD_SCALE := 0.7
-const SELECT_CARD_SCALE := 0.6
 const PICKER_COLUMNS := 10
-const SELECT_COLUMNS := 4
 
 @onready var _header: Label = %HeaderLabel
 @onready var _body: Control = %Body
@@ -28,6 +26,8 @@ var save_path := RunSave.DEFAULT_PATH
 ## One-off message shown above the header line: a bad save on launch, or a save/delete failure.
 var _notice := ""
 var _notice_shown := false
+## The container holding the character panels on the select screen (re-centred as the layout moves).
+var _select_center: CenterContainer
 ## Pause menu: a button in the corner and an overlay that freezes the scene tree.
 var _pause_button: Button
 var _pause_overlay: Control
@@ -39,6 +39,8 @@ var exit_callable: Callable = func() -> void: get_tree().quit()
 
 func _ready() -> void:
 	_build_pause_menu()
+	_body.resized.connect(_recenter_select)
+	resized.connect(_recenter_select)
 	var loaded := RunSave.load_file(save_path)
 	if loaded.run != null:
 		_offer_continue(loaded.run)
@@ -77,18 +79,23 @@ func _new_run() -> void:
 " if _notice != "" else ""
 	_header.text = prefix + "Choose your passenger"
 	_notice_shown = _notice != ""
-	var center := CenterContainer.new()
-	_body.add_child(center)
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_select_center = CenterContainer.new()
+	_body.add_child(_select_center)
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 24)
-	center.add_child(row)
+	row.add_theme_constant_override("separation", 10)
+	_select_center.add_child(row)
 	for id in StarterContent.character_ids():
 		var character := StarterContent.character(id)
 		if character != null:
-			row.add_child(_character_card(character))
+			var panel := CharacterPanel.new(character)
+			panel.play_pressed.connect(_start_run)
+			row.add_child(panel)
 	if row.get_child_count() == 0:
 		row.add_child(_label("No characters could be loaded (content failed to load). See the Output log."))
+	else:
+		(row.get_child(0) as CharacterPanel).play_button.grab_focus() # keyboard: arrows move between panels
+	_recenter_select()
+	_recenter_select.call_deferred() # the layout settles after this frame
 
 
 func _start_run(character_id: StringName) -> void:
@@ -99,47 +106,12 @@ func _start_run(character_id: StringName) -> void:
 	_show_stop()
 
 
-## One column of the select screen: name, HP, pitch, starting deck and a button to pick them.
-func _character_card(character: Character) -> VBoxContainer:
-	var card := VBoxContainer.new()
-	card.custom_minimum_size = Vector2(260, 0)
-	card.add_theme_constant_override("separation", 10)
-	var name_label := _label(character.display_name)
-	name_label.add_theme_font_size_override("font_size", 24)
-	card.add_child(name_label)
-	card.add_child(_label("%d HP" % character.max_hp))
-	var pitch := _label(character.pitch)
-	pitch.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	card.add_child(pitch)
-	card.add_child(_label("Starting deck:"))
-	card.add_child(_deck_grid(character.starting_deck))
-	_add_button(card, "Play as %s" % character.display_name, _start_run.bind(character.id))
-	return card
-
-
-## One small card per distinct card in first-seen order, each with a "3 Shove" count label.
-func _deck_grid(cards: Array[CardData]) -> GridContainer:
-	var counts := {}
-	var order: Array[CardData] = []
-	for card in cards:
-		if not counts.has(card.display_name):
-			order.append(card)
-		counts[card.display_name] = counts.get(card.display_name, 0) + 1
-	var grid := GridContainer.new()
-	grid.columns = SELECT_COLUMNS
-	grid.add_theme_constant_override("h_separation", 6)
-	grid.add_theme_constant_override("v_separation", 6)
-	for card in order:
-		var cell := VBoxContainer.new()
-		cell.add_theme_constant_override("separation", 0)
-		cell.add_child(_card_view(card, SELECT_CARD_SCALE))
-		var count := _label("%d %s" % [counts[card.display_name], card.display_name])
-		count.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		count.custom_minimum_size = Vector2(CardView.BASE.x * SELECT_CARD_SCALE, 0)
-		count.add_theme_font_size_override("font_size", 12)
-		cell.add_child(count)
-		grid.add_child(cell)
-	return grid
+## Keeps the select screen's group centred in the whole window rather than in the body, which
+## sits below the header line.
+func _recenter_select() -> void:
+	if is_instance_valid(_select_center):
+		_select_center.position = -(_body.global_position - global_position)
+		_select_center.size = size
 
 
 ## A card drawn as a CardView. With `on_pressed` it is clickable and lifts on hover, like a
