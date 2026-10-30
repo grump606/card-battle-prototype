@@ -45,6 +45,7 @@ try {
     Invoke-Step 'smoke' @('--headless', '--path', '.', '-s', 'res://tests/smoke_main.gd')
     Invoke-Step 'ui battle' @('--headless', '--path', '.', '-s', 'res://tests/ui_battle_test.gd')
     Invoke-Step 'ui flow' @('--headless', '--path', '.', '-s', 'res://tests/ui_flow_test.gd')
+    Invoke-Step 'ui card view' @('--headless', '--path', '.', '-s', 'res://tests/ui_card_view_test.gd')
 } finally { Pop-Location }
 Write-Host 'CHECK PASSED'
 exit 0
