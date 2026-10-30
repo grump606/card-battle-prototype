@@ -12,8 +12,11 @@ func run() -> int:
 	_test_damage_from_block()
 	_test_conditional_damage_from_block()
 	_test_thorns()
+	_test_gain_energy()
+	_test_damage_per_play()
 	_test_describe()
 	_test_real_cards()
+	_test_pickpocket_cards()
 	return _failures
 
 
@@ -238,3 +241,117 @@ func _test_real_cards() -> void:
 	combo.play_card(combo.piles.hand.find(hold_line))
 	combo.play_card(combo.piles.hand.find(bash), 0)
 	_check(combo.enemies[0].hp == 94, "Hold the Line then Bash deals 6")
+
+
+# --- Pickpocket mechanics: gaining energy, damage per card played -------------
+
+func _test_gain_energy() -> void:
+	var surge := _self_card(0, [_fx(CardEffect.Kind.GAIN_ENERGY, 2)])
+	var big := _attack_card(3, [_fx(CardEffect.Kind.DAMAGE, 9)])
+	var combat := _fight([surge, big])
+	_play(combat, surge)
+	_check(combat.energy == Combat.ENERGY_PER_TURN + 2, "gaining energy lifts it above the per-turn amount")
+	_check(_play(combat, big) and combat.energy == 2, "the gained energy pays for a card")
+	combat.end_player_turn()
+	_check(combat.energy == Combat.ENERGY_PER_TURN, "gained energy does not carry into the next turn")
+
+	# Paying a card's cost before its effects means a cost-1 gain-1 card is energy-neutral.
+	var watch := _self_card(1, [_fx(CardEffect.Kind.GAIN_ENERGY, 1), _fx(CardEffect.Kind.DRAW, 1)])
+	var neutral := _fight([watch])
+	_play(neutral, watch)
+	_check(neutral.energy == Combat.ENERGY_PER_TURN, "a card that costs 1 and gains 1 leaves energy unchanged")
+
+	# A card that costs more than the energy left is still unplayable even if a later card would refund it.
+	var spare := _fight([_attack_card(3, [_fx(CardEffect.Kind.DAMAGE, 1)])])
+	_check(spare.can_play(0), "setup: a cost-3 card is playable with 3 energy")
+
+	# An enemy intent cannot hand the player energy.
+	# Energy is reset when the next turn starts, so look at it as the enemy acts.
+	var odd_intent := _fight([surge], 50, [_fx(CardEffect.Kind.GAIN_ENERGY, 5)])
+	var seen_energy := []
+	odd_intent.enemy_acted.connect(func(_enemy: EnemyUnit, _intent: CardEffect) -> void: seen_energy.append(odd_intent.energy))
+	odd_intent.end_player_turn()
+	_check(seen_energy == [Combat.ENERGY_PER_TURN], "an enemy intent with GAIN_ENERGY does nothing to the player (saw %s)" % str(seen_energy))
+
+
+func _test_damage_per_play() -> void:
+	var last_pocket := _attack_card(0, [_fx(CardEffect.Kind.DAMAGE_PER_PLAY, 4, 3)])
+	var first := _fight([last_pocket])
+	_play(first, last_pocket)
+	_check(first.enemies[0].hp == 96, "played first, it deals only its base damage")
+
+	var filler_a := _self_card(0, [_fx(CardEffect.Kind.BLOCK, 1)])
+	var filler_b := _self_card(0, [_fx(CardEffect.Kind.BLOCK, 1)])
+	var third := _fight([filler_a, filler_b, last_pocket])
+	_play(third, filler_a)
+	_play(third, filler_b)
+	_play(third, last_pocket)
+	_check(third.enemies[0].hp == 90, "after two earlier cards it deals 4 + 3 x 2 = 10")
+
+	var next_turn := _fight([last_pocket, filler_a])
+	_play(next_turn, filler_a)
+	_play(next_turn, last_pocket)
+	_check(next_turn.enemies[0].hp == 93, "one earlier card: 4 + 3 = 7")
+
+	# The count restarts every turn.
+	var many: Array[CardData] = []
+	for i in 3:
+		many.append(_self_card(0, [_fx(CardEffect.Kind.BLOCK, 1)]))
+	many.append(last_pocket)
+	var again := _fight(many)
+	for i in 3:
+		_play(again, many[i])
+	again.end_player_turn()
+	# A deck of four cards is redrawn whole, so Last Pocket is in the new hand.
+	_play(again, last_pocket)
+	_check(again.enemies[0].hp == 96, "the count resets with the new turn (a first play deals the base 4)")
+
+	# Spree: 2 per card played, counting itself.
+	var spree := _attack_card(0, [_fx(CardEffect.Kind.DAMAGE_PER_PLAY, 2, 2)])
+	var alone := _fight([spree])
+	_play(alone, spree)
+	_check(alone.enemies[0].hp == 98, "Spree alone deals 2")
+	var after_two := _fight([filler_a, filler_b, spree])
+	_play(after_two, filler_a)
+	_play(after_two, filler_b)
+	_play(after_two, spree)
+	_check(after_two.enemies[0].hp == 94, "Spree as the third card deals 2 x 3 = 6")
+
+	# Every target of an all-enemies card takes the same scaled damage.
+	var sweep := CardData.make(&"s", "S", 0, [_fx(CardEffect.Kind.DAMAGE_PER_PLAY, 1, 1)], CardData.TargetMode.ALL_ENEMIES)
+	var spread := _fight([filler_a, sweep], 100, [], 2)
+	_play(spread, filler_a)
+	_play(spread, sweep)
+	_check(spread.enemies[0].hp == 98 and spread.enemies[1].hp == 98, "an all-enemies per-play card hits each enemy for the scaled amount")
+
+	# Exposed targets take the scaled damage x 1.5 like any hit.
+	var expose := _attack_card(0, [_fx(CardEffect.Kind.EXPOSE, 2)])
+	var marked := _fight([expose, last_pocket])
+	_play(marked, expose)
+	_play(marked, last_pocket)
+	_check(marked.enemies[0].hp == 90, "the scaled damage is increased by Expose: (4 + 3) x 1.5 = 10")
+
+
+func _test_pickpocket_cards() -> void:
+	var cards := {}
+	for path in StarterContent.ALL_CARD_PATHS:
+		var card := load(path) as CardData
+		cards[card.id] = card
+	for id in [&"lift", &"sleight", &"pocket_watch", &"last_pocket", &"spree"]:
+		_check(cards.has(id) and (cards[id] as CardData).character == &"pickpocket", "%s is a Pickpocket card" % id)
+	_check(cards[&"lift"].describe() == "Deal 3, Draw 1", "Lift text")
+	_check(cards[&"pocket_watch"].describe() == "Gain 1 energy, Draw 1", "Pocket Watch text")
+	_check(cards[&"last_pocket"].describe() == "Deal 4, +3 for each card played earlier this turn", "Last Pocket text")
+	_check(cards[&"sleight"].cost == 0 and cards[&"lift"].cost == 1 and cards[&"spree"].cost == 2, "costs: Sleight 0, Lift 1, Spree 2")
+
+	# A real chain: Sleight (0) exposes, Pocket Watch (net 0 energy), Last Pocket (third card).
+	var sleight: CardData = cards[&"sleight"]
+	var watch: CardData = cards[&"pocket_watch"]
+	var last_pocket: CardData = cards[&"last_pocket"]
+	var chain := Combat.new(Combatant.new("p", 40), [sleight, watch, last_pocket] as Array[CardData], _enemies(1, 100, []))
+	chain.start()
+	chain.play_card(chain.piles.hand.find(sleight), 0)
+	chain.play_card(chain.piles.hand.find(watch))
+	_check(chain.energy == Combat.ENERGY_PER_TURN, "Sleight and Pocket Watch together cost no energy")
+	chain.play_card(chain.piles.hand.find(last_pocket), 0)
+	_check(chain.enemies[0].hp == 100 - (4 + 3 * 2) * 3 / 2, "Last Pocket as the third card on an Exposed target deals (4 + 6) x 1.5 = 15")

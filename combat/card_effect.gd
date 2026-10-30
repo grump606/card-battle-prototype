@@ -10,7 +10,9 @@ extends Resource
 ## DAMAGE_PER_BLOCK: damage equal to your current Block times `amount`.
 ## DAMAGE_IF_BLOCK: `bonus` damage if your Block is at least `threshold`, else `amount`.
 ## THORNS: until your next turn, each enemy attack on you also deals `amount` to that attacker.
-enum Kind { DAMAGE, BLOCK, DRAW, EXPOSE, HOLD, DAMAGE_PER_BLOCK, DAMAGE_IF_BLOCK, THORNS }
+## GAIN_ENERGY: gain `amount` energy now (it can lift energy above the per-turn amount).
+## DAMAGE_PER_PLAY: `amount` plus `bonus` for each card played earlier this turn.
+enum Kind { DAMAGE, BLOCK, DRAW, EXPOSE, HOLD, DAMAGE_PER_BLOCK, DAMAGE_IF_BLOCK, THORNS, GAIN_ENERGY, DAMAGE_PER_PLAY }
 
 @export var kind: Kind = Kind.DAMAGE
 @export var amount: int = 0
@@ -46,4 +48,8 @@ func describe() -> String:
 			return "Deal %d (%d with %d+ Block)" % [amount, bonus, threshold]
 		Kind.THORNS:
 			return "Thorns %d" % amount
+		Kind.GAIN_ENERGY:
+			return "Gain %d energy" % amount
+		Kind.DAMAGE_PER_PLAY:
+			return "Deal %d, +%d for each card played earlier this turn" % [amount, bonus]
 	return ""

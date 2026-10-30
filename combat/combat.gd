@@ -134,7 +134,7 @@ func play_card(hand_index: int, target_index: int = -1) -> bool:
 	plays_this_turn += 1
 	for effect in card.effects:
 		match effect.kind:
-			CardEffect.Kind.DAMAGE, CardEffect.Kind.DAMAGE_PER_BLOCK, CardEffect.Kind.DAMAGE_IF_BLOCK:
+			CardEffect.Kind.DAMAGE, CardEffect.Kind.DAMAGE_PER_BLOCK, CardEffect.Kind.DAMAGE_IF_BLOCK, CardEffect.Kind.DAMAGE_PER_PLAY:
 				for target in targets:
 					_apply(effect, player, target)
 			CardEffect.Kind.EXPOSE:
@@ -215,6 +215,12 @@ func _apply(effect: CardEffect, source: Combatant, target: Combatant) -> void:
 			source.add_hold(effect.amount)
 		CardEffect.Kind.THORNS:
 			source.add_thorns(effect.amount)
+		CardEffect.Kind.GAIN_ENERGY:
+			if source == player:
+				energy += maxi(effect.amount, 0)
+		CardEffect.Kind.DAMAGE_PER_PLAY:
+			# plays_this_turn already counts the card being played.
+			target.take_damage(effect.amount + effect.bonus * maxi(plays_this_turn - 1, 0))
 		CardEffect.Kind.BLOCK:
 			source.gain_block(effect.amount)
 		CardEffect.Kind.DRAW:

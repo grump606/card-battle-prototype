@@ -27,6 +27,11 @@ const DIG_IN_PATH := "res://data/cards/dig_in.tres"
 const COLD_STEEL_PATH := "res://data/cards/cold_steel.tres"
 const COUNTER_STANCE_PATH := "res://data/cards/counter_stance.tres"
 const LAST_STAND_PATH := "res://data/cards/last_stand.tres"
+const LIFT_PATH := "res://data/cards/lift.tres"
+const SLEIGHT_PATH := "res://data/cards/sleight.tres"
+const POCKET_WATCH_PATH := "res://data/cards/pocket_watch.tres"
+const LAST_POCKET_PATH := "res://data/cards/last_pocket.tres"
+const SPREE_PATH := "res://data/cards/spree.tres"
 const CINDER_HOUND_PATH := "res://data/enemies/cinder_hound.tres"
 const MOURNING_CROW_PATH := "res://data/enemies/mourning_crow.tres"
 const WISP_PATH := "res://data/enemies/skittering_wisp.tres"
@@ -40,6 +45,7 @@ const ALL_CARD_PATHS: Array[String] = [
 	SHOVE_PATH, SLIP_PAST_PATH, GLIMPSE_EXIT_PATH, BRACE_PATH, FLURRY_PATH, SWEEP_PATH,
 	HEAVY_BLOW_PATH, STEADY_BREATH_PATH, SHOULDER_CHARGE_PATH, IRON_RESOLVE_PATH, GUARDED_STRIKE_PATH,
 	HOLD_THE_LINE_PATH, BASH_PATH, DIG_IN_PATH, COLD_STEEL_PATH, COUNTER_STANCE_PATH, LAST_STAND_PATH,
+	LIFT_PATH, SLEIGHT_PATH, POCKET_WATCH_PATH, LAST_POCKET_PATH, SPREE_PATH,
 	MARK_THE_WEAK_PATH, CUTTING_WORD_PATH, HAMSTRING_PATH, SECOND_WIND_PATH,
 ]
 ## Playable characters, in the order a selection screen lists them.
