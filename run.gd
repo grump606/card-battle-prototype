@@ -18,9 +18,16 @@ var save_path := RunSave.DEFAULT_PATH
 ## One-off message shown above the header line: a bad save on launch, or a save/delete failure.
 var _notice := ""
 var _notice_shown := false
+## Pause menu: a button in the corner and an overlay that freezes the scene tree.
+var _pause_button: Button
+var _pause_overlay: Control
+var _pause_box: VBoxContainer
+## What "Save & Exit" calls once the save is safe; tests replace it so they do not quit.
+var exit_callable: Callable = func() -> void: get_tree().quit()
 
 
 func _ready() -> void:
+	_build_pause_menu()
 	var loaded := RunSave.load_file(save_path)
 	if loaded.run != null:
 		_offer_continue(loaded.run)
@@ -33,6 +40,7 @@ func _ready() -> void:
 
 ## Launch with a valid save: nothing starts until the player picks Continue or New Run.
 func _offer_continue(saved: RunState) -> void:
+	_pause_button.visible = false
 	_header.text = "Saved run found"
 	var box := _panel("Stop %d/%d, %s HP %d/%d, Gold %d, Deck %d" % [
 		saved.stop_index + 1, saved.stops.size(), saved.player.display_name, saved.player.hp, saved.player.max_hp, saved.gold, saved.deck.size(),
@@ -93,6 +101,7 @@ func _update_header() -> void:
 		position, _run.stops.size(), stop_text, player.display_name, player.hp, player.max_hp, _run.gold, _run.deck.size(),
 	]
 	_notice_shown = _notice != ""
+	_pause_button.visible = not _run.finished
 
 
 func _clear_body() -> void:
@@ -289,3 +298,106 @@ func _add_button(box: Container, text: String, on_pressed: Callable) -> Button:
 	button.pressed.connect(on_pressed)
 	box.add_child(button)
 	return button
+
+
+# --- Pause menu -------------------------------------------------------------
+
+func _build_pause_menu() -> void:
+	# This screen keeps running while the tree is paused (the overlay buttons and the Escape key
+	# need to), so only the run body, which holds the fight, is made pausable.
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	_body.process_mode = Node.PROCESS_MODE_PAUSABLE
+	_pause_button = Button.new()
+	_pause_button.text = "Pause"
+	_pause_button.visible = false
+	_pause_button.focus_mode = Control.FOCUS_NONE # keys belong to the battle screen
+	_pause_button.pressed.connect(_set_paused.bind(true))
+	add_child(_pause_button)
+	_pause_button.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE, 12)
+
+	_pause_overlay = Control.new()
+	_pause_overlay.visible = false
+	add_child(_pause_overlay)
+	_pause_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var dim := ColorRect.new()
+	# Opaque, so the pause is a full screen of its own rather than a veil over the fight.
+	dim.color = Color(0.04, 0.04, 0.07)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP # nothing underneath can be clicked
+	_pause_overlay.add_child(dim)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var center := CenterContainer.new()
+	_pause_overlay.add_child(center)
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_pause_box = VBoxContainer.new()
+	_pause_box.add_theme_constant_override("separation", 12)
+	center.add_child(_pause_box)
+
+
+func _unhandled_key_input(event: InputEvent) -> void:
+	if not (event is InputEventKey) or not event.pressed or event.echo or event.keycode != KEY_ESCAPE:
+		return
+	if _pause_overlay.visible or _pause_button.visible:
+		_set_paused(not _pause_overlay.visible)
+		get_viewport().set_input_as_handled()
+
+
+func _set_paused(on: bool) -> void:
+	get_tree().paused = on
+	_pause_overlay.visible = on
+	if on:
+		_show_pause_options("")
+
+
+func _show_pause_options(message: String) -> void:
+	_clear_pause_box()
+	_add_pause_label("The train waits.", 36)
+	_add_pause_label("Paused. Nothing moves until you do.")
+	if message != "":
+		_add_pause_label(message)
+	_add_button(_pause_box, "Continue", _set_paused.bind(false))
+	_add_button(_pause_box, "Save & Exit", _save_and_exit)
+	_add_button(_pause_box, "New Run", _confirm_new_run)
+	_add_pause_label("A save is taken at the start of every stop, so\nSave & Exit resumes from the start of this stop.")
+
+
+func _confirm_new_run() -> void:
+	_clear_pause_box()
+	_add_pause_label("Abandon this run?", 36)
+	_add_pause_label("This ends the journey and starts a new one.")
+	_add_button(_pause_box, "Yes, start a new run", _start_new_run_from_pause)
+	_add_button(_pause_box, "Cancel", _show_pause_options.bind(""))
+
+
+func _start_new_run_from_pause() -> void:
+	_set_paused(false)
+	_new_run()
+
+
+## The run is saved at the start of each stop, so mid-fight the existing save is already the
+## resume point; only at a stop boundary is there anything new to write. Never exits unless
+## a save exists to come back to.
+func _save_and_exit() -> void:
+	if _run.at_stop_boundary():
+		var error := RunSave.save(_run, save_path)
+		if error != "":
+			_show_pause_options("Could not save: %s" % error)
+			return
+	elif not FileAccess.file_exists(save_path):
+		_show_pause_options("No save to resume from, so not exiting.")
+		return
+	exit_callable.call()
+
+
+func _clear_pause_box() -> void:
+	for child in _pause_box.get_children():
+		_pause_box.remove_child(child)
+		child.queue_free()
+
+
+func _add_pause_label(text: String, font_size: int = 0) -> void:
+	var label := Label.new()
+	label.text = text
+	if font_size > 0:
+		label.add_theme_font_size_override("font_size", font_size)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_pause_box.add_child(label)

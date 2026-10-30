@@ -82,7 +82,7 @@ static func from_dict(data: Variant) -> Result:
 	var rng_text: Variant = d.get("rng_state")
 	# Canonical text only: a number outside int64 or with padding would silently become a
 	# different state through to_int().
-	if typeof(rng_text) != TYPE_STRING or str((rng_text as String).to_int()) != rng_text:
+	if typeof(rng_text) != TYPE_STRING or (rng_text as String).length() > (20 if (rng_text as String).begins_with("-") else 19) or str((rng_text as String).to_int()) != rng_text:
 		return Result.fail("bad rng_state")
 	var raw_deck: Variant = d.get("deck")
 	if typeof(raw_deck) != TYPE_ARRAY or (raw_deck as Array).is_empty() or (raw_deck as Array).size() > MAX_DECK:

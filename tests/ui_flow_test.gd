@@ -213,7 +213,94 @@ func _initialize() -> void:
 	_check((bad_scene.get_node("%HeaderLabel") as Label).text.contains("could not be loaded"), "a corrupt save shows a message")
 	bad_scene.queue_free()
 	await process_frame
+
+	# Pause menu: opens over a fight, freezes it, and offers Continue, Save & Exit and New Run.
+	RunSave.delete(test_save)
+	var pause_scene: Control = load("res://run.tscn").instantiate()
+	pause_scene.save_path = test_save
+	var exits := [0]
+	pause_scene.exit_callable = func() -> void: exits[0] += 1
+	root.add_child(pause_scene)
+	await process_frame
+	var pause_button: Button = pause_scene._pause_button
+	var overlay: Control = pause_scene._pause_overlay
+	_check(pause_button.visible and not overlay.visible, "a running run shows the Pause button and a closed menu")
+	pause_scene._run.read_story()
+	pause_scene._show_stop()
+	await process_frame
+	_check(pause_scene._run.current_stop().type == RunState.StopType.COMBAT, "setup: standing at a fight")
+	var fight: Node = pause_scene.get_node("%Body").get_child(0)
+	var energy_before: int = fight._combat.energy
+	pause_button.pressed.emit()
+	await process_frame
+	_check(overlay.visible and pause_scene.get_tree().paused, "Pause opens the menu and pauses the tree")
+	_check(_find(pause_scene._pause_box, "Continue") != null and _find(pause_scene._pause_box, "Save & Exit") != null and _find(pause_scene._pause_box, "New Run") != null, "the pause menu offers Continue, Save & Exit and New Run")
+	_find(pause_scene._pause_box, "Continue").pressed.emit()
+	await process_frame
+	_check(not overlay.visible and not pause_scene.get_tree().paused, "Continue closes the menu and unpauses")
+	_check(fight._combat.energy == energy_before, "the fight is untouched by pausing")
+
+	# Escape toggles the menu.
+	var esc := InputEventKey.new()
+	esc.keycode = KEY_ESCAPE
+	esc.pressed = true
+	pause_scene._unhandled_key_input(esc)
+	_check(overlay.visible and pause_scene.get_tree().paused, "Escape opens the menu")
+	pause_scene._unhandled_key_input(esc)
+	_check(not overlay.visible and not pause_scene.get_tree().paused, "Escape closes it again")
+
+	# Save & Exit mid-fight keeps the stop-start save and exits; it refuses with no save.
+	pause_button.pressed.emit()
+	await process_frame
+	RunSave.delete(test_save)
+	_find(pause_scene._pause_box, "Save & Exit").pressed.emit()
+	await process_frame
+	_check(exits[0] == 0 and _all_text(pause_scene._pause_box).contains("No save to resume"), "Save & Exit refuses to exit when there is no save to resume from")
+	_set_paused_off(pause_scene)
+	pause_scene._run.complete_combat(true)
+	pause_scene._run.resolve_reward(null)
+	pause_scene._show_stop()
+	await process_frame
+	var at_next: int = pause_scene._run.stop_index
+	pause_button.pressed.emit()
+	await process_frame
+	_find(pause_scene._pause_box, "Save & Exit").pressed.emit()
+	await process_frame
+	var after_exit := RunSave.load_file(test_save)
+	_check(exits[0] == 1 and after_exit.run != null and after_exit.run.stop_index == at_next, "Save & Exit writes the save and exits")
+	_set_paused_off(pause_scene)
+
+	# New Run asks first, and Cancel backs out.
+	pause_button.pressed.emit()
+	await process_frame
+	var stop_before_new: int = pause_scene._run.stop_index
+	_find(pause_scene._pause_box, "New Run").pressed.emit()
+	await process_frame
+	_check(_all_text(pause_scene._pause_box).contains("Abandon this run") and pause_scene._run.stop_index == stop_before_new, "New Run asks for confirmation first")
+	_find(pause_scene._pause_box, "Cancel").pressed.emit()
+	await process_frame
+	_check(_find(pause_scene._pause_box, "Continue") != null and pause_scene._run.stop_index == stop_before_new, "Cancel returns to the pause menu with the run intact")
+	_find(pause_scene._pause_box, "New Run").pressed.emit()
+	await process_frame
+	_find(pause_scene._pause_box, "Yes").pressed.emit()
+	await process_frame
+	_check(not overlay.visible and not pause_scene.get_tree().paused and pause_scene._run.stop_index == 0, "confirming starts a fresh run and closes the menu")
+
+	# No Pause button once the run is over.
+	var done := RunState.new(4)
+	done.finished = true
+	pause_scene._run = done
+	pause_scene._show_stop()
+	await process_frame
+	_check(not pause_button.visible, "the Pause button is hidden on the end card")
+	pause_scene.queue_free()
+	await process_frame
+
 	RunSave.delete(test_save)
 
 	print("UI FLOW FAILURES: %d" % _failures)
 	quit(1 if _failures > 0 else 0)
+
+
+func _set_paused_off(scene: Control) -> void:
+	scene._set_paused(false)
