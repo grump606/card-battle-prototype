@@ -11,12 +11,11 @@ Last updated at the end of the classes work. Everything below is on `main` and p
 ## To do, in the order I would take it
 
 1. **Playtest each class** and say how it feels. The numbers are tuned against bots, not people. Watch the Deserter (the skill-sensitive one) and the Medium (very HP-sensitive: 38 to 48 HP moved it from 28% to 68%).
-2. **Card rewards rework** (you said rewards could use work). Not designed yet.
+2. **Card rewards rework** (you said rewards could use work). A proposal is in `docs/REWARDS_PROPOSAL.md`; it needs your answers to its open questions.
 3. **Pause screen artwork** ("full cut scene"). Not designed yet.
 
 ## Smaller open items
 
-- The battle damage preview only knows plain damage, so Bash, Cold Steel, Last Pocket and Reckoning show no preview number (their card text still says what they do).
 - The bots do not sequence the Pickpocket's per-play cards optimally, so that class's bot numbers may understate it.
 - Several cards are rarely played by the bots (Spree, Pocket Watch, Seance, Spirit Tithe, Reckoning); worth a look if they feel weak in play.
 - Save-scumming (quit mid-fight, Continue replays the stop) is intentional.
