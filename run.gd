@@ -10,6 +10,8 @@ const BATTLE_SCENE := preload("res://battle.tscn")
 const OFFER_CARD_SCALE := 1.2
 const PICKER_CARD_SCALE := 0.7
 const PICKER_COLUMNS := 10
+## Height reserved above the vendor's speech banner for the shopkeeper's hood (see VendorScene).
+const VENDOR_HEAD_HEIGHT := 104.0
 
 @onready var _header: Label = %HeaderLabel
 @onready var _body: Control = %Body
@@ -272,11 +274,26 @@ func _read_story() -> void:
 
 func _show_vendor() -> void:
 	var vendor := _run.vendor()
-	var box := _panel("A vendor leans out of the dark.    Gold: %d" % _run.gold)
+	# The stall is drawn behind the panel (the panel is added after it, so it sits on top).
+	var stall := VendorScene.new()
+	_body.add_child(stall)
+	stall.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	stall.set_gold(_run.gold)
+	stall.dimmed = _removing
+	var box := _panel("A pale vendor leans out of the lantern light." if _run.gold >= Vendor.PRICE_CHEAP else "\"Empty pockets? Look, then. Looking is free.\"")
+	_style_banner(box.get_child(0) as Label)
+	if not _removing:
+		var head := Control.new() # room for the shopkeeper's hood above the speech banner
+		head.custom_minimum_size = Vector2(0, VENDOR_HEAD_HEIGHT)
+		head.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(head)
+		box.move_child(head, 0)
+		stall.head_anchor = head
 	if _vendor_message != "":
 		var message := Label.new()
 		message.text = _vendor_message
 		message.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_style_banner(message)
 		box.add_child(message)
 	if _removing:
 		_show_remove_picker(box, _remove_card, _cancel_removing)
@@ -301,13 +318,70 @@ func _show_vendor() -> void:
 		column.add_child(view)
 		column.add_child(_label("Sold" if sold else "%d gold" % price))
 		row.add_child(column)
+	stall.counter_anchor = row
+	# The services sit on the counter front in a row, each with a prop drawn to its left by the stall
+	# (the spacers keep the row centred).
+	var services := HBoxContainer.new()
+	services.alignment = BoxContainer.ALIGNMENT_CENTER
+	services.add_theme_constant_override("separation", 52)
+	box.add_child(services)
+	services.add_child(_service_gap())
 	# Disabled up front when the purchase would be refused, so the player is not
 	# sent into a picker or a click that can only fail.
-	var remove := _add_button(box, "Remove a card (%d gold)" % Vendor.REMOVE_CARD_PRICE, _start_removing)
+	var remove := _add_button(services, "Remove a card (%d gold)" % Vendor.REMOVE_CARD_PRICE, _start_removing)
 	remove.disabled = vendor.has_removed() or _run.gold < Vendor.REMOVE_CARD_PRICE or _run.deck.size() <= 1
-	var heal := _add_button(box, "Heal %d HP (%d gold)" % [Vendor.HEAL_AMOUNT, Vendor.HEAL_PRICE], _buy_heal)
+	var heal := _add_button(services, "Heal %d HP (%d gold)" % [Vendor.HEAL_AMOUNT, Vendor.HEAL_PRICE], _buy_heal)
 	heal.disabled = vendor.has_healed() or _run.gold < Vendor.HEAL_PRICE or _run.player.hp >= _run.player.max_hp
-	_add_button(box, "Leave", _leave_vendor)
+	var leave := _add_button(services, "Leave", _leave_vendor)
+	services.add_child(_service_gap())
+	for button in [remove, heal, leave]:
+		_style_service(button)
+		stall.service_anchors.append(button)
+
+
+## A dark ribbon with a brass edge, so the vendor's words read over the art.
+func _style_banner(label: Label) -> void:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.04, 0.03, 0.03, 0.9)
+	style.set_border_width_all(2)
+	style.border_color = Color(0.78, 0.55, 0.24)
+	style.set_corner_radius_all(6)
+	style.set_content_margin_all(5)
+	label.add_theme_stylebox_override("normal", style)
+	label.add_theme_color_override("font_color", Color(1.0, 0.93, 0.78))
+
+
+## A brass-edged counter button; the stock focus outline is kept visible for the keyboard.
+func _style_service(button: Button) -> void:
+	var states := {"normal": Color(0.17, 0.105, 0.06), "hover": Color(0.27, 0.17, 0.08), "pressed": Color(0.12, 0.07, 0.04), "disabled": Color(0.09, 0.07, 0.06)}
+	for state in states:
+		var style := StyleBoxFlat.new()
+		style.bg_color = states[state]
+		style.set_border_width_all(2)
+		style.border_color = Color(0.42, 0.34, 0.26) if state == "disabled" else Color(0.82, 0.6, 0.28)
+		style.set_corner_radius_all(5)
+		style.content_margin_left = 14
+		style.content_margin_right = 14
+		style.content_margin_top = 6
+		style.content_margin_bottom = 6
+		button.add_theme_stylebox_override(state, style)
+	var focus := StyleBoxFlat.new()
+	focus.draw_center = false
+	focus.set_border_width_all(2)
+	focus.border_color = Color(1.0, 0.95, 0.7)
+	focus.set_corner_radius_all(5)
+	focus.set_expand_margin_all(2)
+	button.add_theme_stylebox_override("focus", focus)
+	button.add_theme_color_override("font_color", Color(1.0, 0.93, 0.78))
+	button.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 0.9))
+	button.add_theme_color_override("font_disabled_color", Color(0.62, 0.57, 0.52))
+
+
+func _service_gap() -> Control:
+	var gap := Control.new()
+	gap.custom_minimum_size = Vector2(36, 0)
+	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return gap
 
 
 func _show_remove_picker(box: VBoxContainer, on_pick: Callable, on_cancel: Callable) -> void:
