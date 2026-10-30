@@ -42,6 +42,14 @@ func _first_enabled(body: Node) -> Button:
 	return null
 
 
+## The first card view that a click would act on (the card equivalent of an enabled button).
+func _first_card(body: Node) -> CardView:
+	for view in CardView.find_all(body):
+		if view.is_clickable():
+			return view
+	return null
+
+
 func _find(body: Node, prefix: String) -> Button:
 	var found: Array = []
 	_buttons(body, found)
@@ -132,24 +140,29 @@ func _initialize() -> void:
 			for button in reward_buttons:
 				has_skip = has_skip or (button as Button).text == skip_label
 			_check(has_skip, "the reward panel's Skip button shows its gold")
-			var pick := _first_enabled(body)
-			_check(pick != null, "the reward panel offers a choice")
-			var pick_text := pick.text  # read first: pressing rebuilds the panel and frees this button
-			pick.pressed.emit()
+			var pick_card := _first_card(body)
+			var pick_button := _first_enabled(body)  # Skip, when no card is offered
+			_check(pick_card != null or pick_button != null, "the reward panel offers a choice")
+			_check(CardView.find_all(body).size() == run_state.reward_choices().size(), "the reward panel shows every offered card")
+			if pick_card != null:
+				pick_card.pressed.emit()
+			else:
+				pick_button.pressed.emit()
 			await process_frame
-			_check(scene._run.deck.size() == deck_before + 1 or pick_text == "Skip", "picking a reward adds the card")
+			_check(scene._run.deck.size() == deck_before + 1 or pick_card == null, "picking a reward adds the card")
 		elif stop_type == RunState.StopType.VENDOR:
 			vendor_visits += 1
 			_check(header.text.contains("Gold %d" % run_state.gold), "the header shows the run's gold")
 			var gold_before := run_state.gold
-			var buy: Button = null
-			var found: Array = []
-			_buttons(body, found)
-			for button in found:
-				var text: String = (button as Button).text
-				if not (button as Button).disabled and text.contains(" gold") and not text.begins_with("Remove") and not text.begins_with("Heal"):
-					buy = button
-					break
+			var offers := run_state.vendor().offers()
+			var offer_views := CardView.find_all(body)
+			_check(offer_views.size() == offers.size(), "the vendor panel shows every offered card")
+			for i in mini(offers.size(), offer_views.size()):
+				var can_buy: bool = not offers[i]["sold"] and run_state.gold >= offers[i]["price"]
+				_check(offer_views[i].is_clickable() == can_buy, "a vendor card is clickable exactly when it can be bought")
+				_check(can_buy or offer_views[i].note == ("SOLD" if offers[i]["sold"] else "NEED %d GOLD" % offers[i]["price"]), "an unbuyable vendor card says why")
+			# An offer card the player can afford (clickable); unaffordable and sold ones are dimmed.
+			var buy := _first_card(body)
 			if buy != null:
 				var deck_size := run_state.deck.size()
 				buy.pressed.emit()
@@ -354,7 +367,7 @@ func _initialize() -> void:
 	_find(alt_body, "Remove a card").pressed.emit()
 	await process_frame
 	var alt_deck := alt.deck.size()
-	_first_enabled(alt_body).pressed.emit()
+	_first_card(alt_body).pressed.emit()
 	await process_frame
 	_check(alt.deck.size() == alt_deck - 1 and alt.reward_remove_used and not alt.reward_pending() and alt.stop_index == 2, "picking a card removes it and resolves the reward")
 	alt.complete_combat(true)

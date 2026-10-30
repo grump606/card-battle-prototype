@@ -5,6 +5,14 @@ extends Control
 
 const BATTLE_SCENE := preload("res://battle.tscn")
 
+## Card sizes: reward and vendor offers are drawn larger than a hand card, deck pickers and
+## the character select screen use small cards (their names are also in tooltips and labels).
+const OFFER_CARD_SCALE := 1.2
+const PICKER_CARD_SCALE := 0.7
+const SELECT_CARD_SCALE := 0.6
+const PICKER_COLUMNS := 10
+const SELECT_COLUMNS := 4
+
 @onready var _header: Label = %HeaderLabel
 @onready var _body: Control = %Body
 
@@ -71,7 +79,7 @@ func _new_run() -> void:
 	_notice_shown = _notice != ""
 	var center := CenterContainer.new()
 	_body.add_child(center)
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 24)
 	center.add_child(row)
@@ -103,25 +111,51 @@ func _character_card(character: Character) -> VBoxContainer:
 	var pitch := _label(character.pitch)
 	pitch.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	card.add_child(pitch)
-	card.add_child(_label("Starting deck:
-%s" % _deck_summary(character.starting_deck)))
+	card.add_child(_label("Starting deck:"))
+	card.add_child(_deck_grid(character.starting_deck))
 	_add_button(card, "Play as %s" % character.display_name, _start_run.bind(character.id))
 	return card
 
 
-## "3 Shove, 2 Slip Past, ..." in first-seen order.
-func _deck_summary(cards: Array[CardData]) -> String:
+## One small card per distinct card in first-seen order, each with a "3 Shove" count label.
+func _deck_grid(cards: Array[CardData]) -> GridContainer:
 	var counts := {}
-	var order: Array[String] = []
+	var order: Array[CardData] = []
 	for card in cards:
 		if not counts.has(card.display_name):
-			order.append(card.display_name)
+			order.append(card)
 		counts[card.display_name] = counts.get(card.display_name, 0) + 1
-	var parts: Array[String] = []
-	for card_name in order:
-		parts.append("%d %s" % [counts[card_name], card_name])
-	return "
-".join(parts)
+	var grid := GridContainer.new()
+	grid.columns = SELECT_COLUMNS
+	grid.add_theme_constant_override("h_separation", 6)
+	grid.add_theme_constant_override("v_separation", 6)
+	for card in order:
+		var cell := VBoxContainer.new()
+		cell.add_theme_constant_override("separation", 0)
+		cell.add_child(_card_view(card, SELECT_CARD_SCALE))
+		var count := _label("%d %s" % [counts[card.display_name], card.display_name])
+		count.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		count.custom_minimum_size = Vector2(CardView.BASE.x * SELECT_CARD_SCALE, 0)
+		count.add_theme_font_size_override("font_size", 12)
+		cell.add_child(count)
+		grid.add_child(cell)
+	return grid
+
+
+## A card drawn as a CardView. With `on_pressed` it is clickable and lifts on hover, like a
+## button; the tooltip repeats the card's name, cost and text for small sizes.
+func _card_view(card: CardData, view_scale: float, on_pressed := Callable()) -> CardView:
+	var view := CardView.new()
+	view.view_scale = view_scale
+	view.set_card(card)
+	view.tooltip_text = "%s (%d)\n%s" % [card.display_name, card.cost, card.describe()]
+	if on_pressed.is_valid():
+		view.clickable = true
+		view.auto_hover = true
+		view.pressed.connect(on_pressed)
+	else:
+		view.mouse_filter = Control.MOUSE_FILTER_PASS # still shows its tooltip
+	return view
 
 
 func _label(text: String) -> Label:
@@ -201,9 +235,12 @@ func _show_reward() -> void:
 		_show_remove_picker(picker, _reward_remove_card, _cancel_reward_removing)
 		return
 	var box := _panel("Victory. Take a card for your deck, or skip.")
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 16)
+	box.add_child(row)
 	for card in _run.reward_choices():
-		var button := _add_button(box, "%s (%d)\n%s" % [card.display_name, card.cost, card.describe()], _take_reward.bind(card))
-		button.custom_minimum_size = Vector2(260, 56)
+		row.add_child(_card_view(card, OFFER_CARD_SCALE, _take_reward.bind(card)))
 	_add_button(box, "Skip (+%d gold)" % RunState.SKIP_GOLD, _take_reward.bind(null))
 	# Once-per-run alternatives: hidden once used (Heal also while at full HP).
 	if _run.can_reward_remove():
@@ -271,13 +308,25 @@ func _show_vendor() -> void:
 		_show_remove_picker(box, _remove_card, _cancel_removing)
 		return
 	var offers := vendor.offers()
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 16)
+	box.add_child(row)
 	for i in offers.size():
 		var card: CardData = offers[i]["card"]
 		var sold: bool = offers[i]["sold"]
-		var text := "%s (%d)\n%s\n%d gold" % [card.display_name, card.cost, card.describe(), offers[i]["price"]]
-		var button := _add_button(box, "%s  (sold)" % card.display_name if sold else text, _buy_card.bind(i))
-		button.disabled = sold or _run.gold < offers[i]["price"]
-		button.custom_minimum_size = Vector2(300, 56)
+		var price: int = offers[i]["price"]
+		var column := VBoxContainer.new()
+		column.add_theme_constant_override("separation", 2)
+		var view := _card_view(card, OFFER_CARD_SCALE, _buy_card.bind(i))
+		# A sold or unaffordable offer is dimmed with the reason on the card, and cannot be clicked.
+		if sold:
+			view.set_state(CardView.State.UNPLAYABLE, "SOLD")
+		elif _run.gold < price:
+			view.set_state(CardView.State.UNPLAYABLE, "NEED %d GOLD" % price)
+		column.add_child(view)
+		column.add_child(_label("Sold" if sold else "%d gold" % price))
+		row.add_child(column)
 	# Disabled up front when the purchase would be refused, so the player is not
 	# sent into a picker or a click that can only fail.
 	var remove := _add_button(box, "Remove a card (%d gold)" % Vendor.REMOVE_CARD_PRICE, _start_removing)
@@ -289,10 +338,12 @@ func _show_vendor() -> void:
 
 func _show_remove_picker(box: VBoxContainer, on_pick: Callable, on_cancel: Callable) -> void:
 	var grid := GridContainer.new()
-	grid.columns = 4
+	grid.columns = PICKER_COLUMNS
+	grid.add_theme_constant_override("h_separation", 6)
+	grid.add_theme_constant_override("v_separation", 6)
 	box.add_child(grid)
 	for i in _run.deck.size():
-		_add_button(grid, _run.deck[i].display_name, on_pick.bind(i))
+		grid.add_child(_card_view(_run.deck[i], PICKER_CARD_SCALE, on_pick.bind(i)))
 	_add_button(box, "Cancel", on_cancel)
 
 
@@ -378,7 +429,7 @@ func _delete_save() -> void:
 func _panel(title: String) -> VBoxContainer:
 	var center := CenterContainer.new()
 	_body.add_child(center)
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 12)
 	center.add_child(box)

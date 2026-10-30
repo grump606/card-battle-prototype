@@ -4,6 +4,8 @@ extends Control
 
 const PLAYER_START_HP := 40
 const MAX_HAND_KEYS := 9
+## Hand cards are drawn smaller than full size so a hand fits beside the enemy row and log.
+const HAND_CARD_SCALE := 0.85
 
 # Derived from the rules constants so the text cannot drift from them.
 const EXPOSED_MULTIPLIER_TEXT := "%.1fx" % (float(Combatant.EXPOSED_NUM) / Combatant.EXPOSED_DEN)
@@ -126,12 +128,31 @@ func _rebuild_hand() -> void:
 		_discard_node(child)
 	for i in _combat.piles.hand.size():
 		var card := _combat.piles.hand[i]
-		var button := Button.new()
-		button.text = "%s (%d)\n%s%s%s" % [card.display_name, card.cost, card.describe(), _damage_preview(card), _target_tag(card)]
-		button.disabled = not _combat.can_play(i)
-		button.focus_mode = Control.FOCUS_NONE
-		button.pressed.connect(_play_hand_card.bind(i))
-		_hand_box.add_child(button)
+		var view := CardView.new()
+		view.view_scale = HAND_CARD_SCALE
+		view.auto_hover = true
+		view.clickable = true
+		view.set_card(card)
+		view.hotkey = i + 1 if i < MAX_HAND_KEYS else 0
+		view.preview = _damage_preview(card).strip_edges()
+		if _combat.can_play(i):
+			view.set_state(CardView.State.NORMAL)
+		else:
+			view.set_state(CardView.State.UNPLAYABLE, _unplayable_note(card))
+		view.pressed.connect(_play_hand_card.bind(i))
+		_hand_box.add_child(view)
+
+
+## Why a hand card cannot be played right now, as a short warning for the card ("" when the
+## fight is not on the player's turn, where nothing is playable and no card needs a warning).
+func _unplayable_note(card: CardData) -> String:
+	if _combat.phase != Combat.Phase.PLAYER_TURN:
+		return ""
+	if card.cost > _combat.energy:
+		return "NEED %d ENERGY" % card.cost
+	if card.hp_cost() >= _combat.player.hp:
+		return "TOO LOW HP"
+	return "PLAY LIMIT"
 
 
 ## Removes a stale child immediately (not just queue_free) so it can no longer
@@ -223,16 +244,6 @@ func _status_text(combatant: Combatant) -> String:
 	if combatant.thorns > 0:
 		text += "  Thorns %d" % combatant.thorns
 	return text
-
-
-## Single-target cards use the selected enemy, so only the other modes get a tag.
-func _target_tag(card: CardData) -> String:
-	match card.target_mode:
-		CardData.TargetMode.ALL_ENEMIES:
-			return "\n[all enemies]"
-		CardData.TargetMode.SELF:
-			return "\n[self]"
-	return ""
 
 
 func _select_target(index: int) -> void:

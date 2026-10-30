@@ -55,7 +55,7 @@ layout_mode = 2
 
 [node name="HandBox" type="HFlowContainer" parent="Layout"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 100)
+custom_minimum_size = Vector2(0, 168)
 layout_mode = 2
 alignment = 1
 

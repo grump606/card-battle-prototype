@@ -46,7 +46,7 @@ func _check_preview_matches_damage(node: Control, combat: Combat) -> void:
 			combat.piles.hand.clear()
 			combat.piles.hand.append(card)
 			node._rebuild_hand()
-			var text: String = node._hand_box.get_child(0).text
+			var text: String = (node._hand_box.get_child(0) as CardView).preview
 			var dealt_to_block := target.block
 			combat.play_card(0, 0)
 			var lost: int = 500 - target.hp
@@ -73,6 +73,11 @@ func _initialize() -> void:
 			idx = i
 			break
 	var hand_n := c.piles.hand.size()
+	var views := CardView.find_all(node._hand_box)
+	check(views.size() == hand_n, "one card view per hand card")
+	for i in views.size():
+		check(views[i].card == c.piles.hand[i] and views[i].hotkey == i + 1, "hand card %d shows its card and hotkey" % (i + 1))
+		check(views[i].is_clickable() == c.can_play(i) and (views[i].state == CardView.State.UNPLAYABLE) == not c.can_play(i), "hand card %d is clickable exactly when playable" % (i + 1))
 	var disc := c.piles.discard_pile.size()
 	key(node, KEY_1 + idx)
 	check(c.piles.discard_pile.size() == disc + 1, "number key played (discard grew)")
@@ -88,7 +93,7 @@ func _initialize() -> void:
 	check(node._enemy_row.get_child(1).tooltip_text == "", "no tooltip unexposed")
 	var all_txt := ""
 	for b in node._hand_box.get_children():
-		all_txt += b.text + "\n---\n"
+		all_txt += (b as CardView).preview + "\n---\n"
 	print(all_txt)
 	var dmg_cards := 0
 	for card in c.piles.hand:
@@ -99,7 +104,7 @@ func _initialize() -> void:
 		node._select_target(1)
 		var t2 := ""
 		for b in node._hand_box.get_children():
-			t2 += b.text
+			t2 += (b as CardView).preview
 		check(not t2.contains("vs Exposed"), "no exposed preview on unexposed target")
 		node._select_target(0)
 	c.enemies[1].take_damage(9999)
@@ -137,6 +142,26 @@ func _initialize() -> void:
 	key(node, KEY_N)
 	check(node._combat != c and node._combat.phase == Combat.Phase.PLAYER_TURN and not node._new_fight_button.visible, "N new fight")
 	var c2: Combat = node._combat
+	# Clicking a card view plays it, like the old buttons did; an unplayable one does nothing.
+	var click_views := CardView.find_all(node._hand_box)
+	var clicked := -1
+	for i in click_views.size():
+		if c2.can_play(i):
+			clicked = i
+			break
+	check(clicked >= 0, "the new fight has a playable card")
+	var discard_before := c2.piles.discard_pile.size()
+	click_views[clicked].pressed.emit()
+	check(c2.piles.discard_pile.size() == discard_before + 1, "clicking a card view plays it")
+	c2.energy = 0
+	node._refresh()
+	var dimmed := CardView.find_all(node._hand_box)
+	var any_costly := false
+	for i in dimmed.size():
+		if c2.piles.hand[i].cost > 0:
+			any_costly = true
+			check(dimmed[i].state == CardView.State.UNPLAYABLE and dimmed[i].note == "NEED %d ENERGY" % c2.piles.hand[i].cost and not dimmed[i].is_clickable(), "a card that costs too much shows how much energy it needs")
+	check(any_costly or dimmed.is_empty(), "setup: the hand has a card that costs energy")
 	_check_preview_matches_damage(node, c2)
 	c2.phase = Combat.Phase.ENEMY_TURN
 	var h := c2.piles.hand.size()
