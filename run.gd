@@ -192,6 +192,8 @@ func _show_combat() -> void:
 		return
 	var battle := BATTLE_SCENE.instantiate()
 	battle.external_combat = combat
+	battle.boss_fight = _run.current_stop().boss
+	battle.character_id = _run.character.id if _run.character != null else &""
 	battle.fight_finished.connect(_on_fight_finished)
 	_body.add_child(battle)
 

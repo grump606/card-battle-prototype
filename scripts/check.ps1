@@ -47,6 +47,7 @@ try {
     Invoke-Step 'ui flow' @('--headless', '--path', '.', '-s', 'res://tests/ui_flow_test.gd')
     Invoke-Step 'ui card view' @('--headless', '--path', '.', '-s', 'res://tests/ui_card_view_test.gd')
     Invoke-Step 'ui enemy view' @('--headless', '--path', '.', '-s', 'res://tests/ui_enemy_view_test.gd')
+    Invoke-Step 'ui battle backdrop' @('--headless', '--path', '.', '-s', 'res://tests/ui_battle_backdrop_test.gd')
 } finally { Pop-Location }
 Write-Host 'CHECK PASSED'
 exit 0
