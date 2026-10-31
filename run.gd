@@ -253,9 +253,14 @@ func _reward_heal() -> void:
 
 func _show_story() -> void:
 	var beat := _run.current_beat()
+	# The window onto the tunnel sits behind the panel (see StoryScene).
+	var story := StoryScene.new()
+	story.beat_index = _run.current_stop().beat_index
+	_add_backdrop(story)
 	if beat == null:
 		# Load failure is logged by the run; the stop must still be passable.
 		var fallback := _panel("The train rattles on through the dark.")
+		_style_banner(fallback.get_child(0) as Label)
 		_add_button(fallback, "Continue", _read_story)
 		return
 	var box := _panel(beat.title)
@@ -265,6 +270,31 @@ func _show_story() -> void:
 	text.custom_minimum_size = Vector2(480, 0)
 	box.add_child(text)
 	_add_button(box, beat.button_text, _read_story)
+	# Dark ink on a paper card, like a ticket, so the words read over the art.
+	var ink := Color(0.14, 0.10, 0.07)
+	for label in [box.get_child(0), text]:
+		label.add_theme_color_override("font_color", ink)
+	box.get_child(0).add_theme_font_size_override("font_size", 22)
+	var card := PanelContainer.new()
+	var paper := StyleBoxFlat.new()
+	paper.bg_color = Color(0.89, 0.83, 0.68)
+	paper.set_border_width_all(3)
+	paper.border_color = Color(0.45, 0.30, 0.15)
+	paper.set_corner_radius_all(5)
+	paper.set_content_margin_all(22)
+	paper.shadow_color = Color(0, 0, 0, 0.55)
+	paper.shadow_size = 14
+	card.add_theme_stylebox_override("panel", paper)
+	var center := box.get_parent()
+	center.remove_child(box)
+	center.add_child(card)
+	card.add_child(box)
+
+
+## Adds a scene behind the panel that follows it (the panel is added after, so it sits on top).
+func _add_backdrop(scene: Control) -> void:
+	_body.add_child(scene)
+	scene.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 
 func _read_story() -> void:
@@ -434,8 +464,12 @@ func _leave_vendor() -> void:
 
 func _show_rest() -> void:
 	var player := _run.player
+	var scene := RestScene.new()
+	scene.character_id = _run.character.id if _run.character != null else &""
+	_add_backdrop(scene)
 	var box := _panel("A quiet platform. The train waits.\nHP %d/%d" % [player.hp, player.max_hp])
-	_add_button(box, "Rest (+%d HP)" % RunState.REST_HEAL, _rest)
+	_style_banner(box.get_child(0) as Label)
+	_style_service(_add_button(box, "Rest (+%d HP)" % RunState.REST_HEAL, _rest))
 
 
 func _rest() -> void:
@@ -445,14 +479,19 @@ func _rest() -> void:
 
 func _show_end() -> void:
 	var title := "You slip off the train and into the light." if _run.escaped else "You are claimed by the afterlife."
+	var scene := EndScene.new()
+	scene.escaped = _run.escaped
+	_add_backdrop(scene)
 	var box := _panel("%s\nOutcome: %s" % [title, "Escaped" if _run.escaped else "Defeated"])
+	_style_banner(box.get_child(0) as Label)
 	var summary := Label.new()
 	summary.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	summary.text = "Stops cleared: %d/%d\nFinal HP: %d/%d\nDeck: %d cards\nGold: %d" % [
 		_run.stop_index, _run.stops.size(), _run.player.hp, _run.player.max_hp, _run.deck.size(), _run.gold,
 	]
+	_style_banner(summary)
 	box.add_child(summary)
-	_add_button(box, "New Run", _new_run)
+	_style_service(_add_button(box, "New Run", _new_run))
 
 
 ## Saves the run at the start of a stop (never mid-fight). A failure is shown, not fatal.

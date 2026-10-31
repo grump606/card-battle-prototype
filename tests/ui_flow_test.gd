@@ -33,6 +33,15 @@ func _all_text(node: Node) -> String:
 	return text
 
 
+## Children of the body that are panels: the art scenes drawn behind a panel (ScreenScene) do not count.
+func _panel_count(body: Node) -> int:
+	var count := 0
+	for child in body.get_children():
+		if not child is ScreenScene:
+			count += 1
+	return count
+
+
 func _find_panels(node: Node, out: Array[CharacterPanel]) -> void:
 	if node is CharacterPanel:
 		out.append(node)
@@ -237,7 +246,7 @@ func _initialize() -> void:
 	await process_frame
 	_check(scene._run.character.id == &"pickpocket" and scene._run.player.max_hp == StarterContent.character(&"pickpocket").max_hp and scene._run.player.display_name == "The Pickpocket", "picking the Pickpocket starts a Pickpocket run")
 	_check(scene._run.stop_index == 0 and not scene._run.finished and scene._run.gold == 0, "a character pick starts a fresh run")
-	_check(body.get_child_count() == 1, "New Run leaves exactly one panel in the body")
+	_check(_panel_count(body) == 1, "New Run leaves exactly one panel in the body")
 	_check(FileAccess.file_exists(test_save), "a new run is saved at its first stop")
 
 	# Defeat summary.
@@ -271,7 +280,7 @@ func _initialize() -> void:
 	await process_frame
 	var resumed: RunState = resumed_scene._run
 	_check(resumed != null and resumed.stop_index == 1 and resumed.gold == 9 and resumed.player.hp == 30, "Continue resumes the saved run")
-	_check(resumed_body.get_child_count() == 1, "Continue shows exactly one panel")
+	_check(_panel_count(resumed_body) == 1, "Continue shows exactly one panel")
 	resumed_scene.queue_free()
 	await process_frame
 
@@ -287,7 +296,7 @@ func _initialize() -> void:
 		await process_frame
 		var shown := (pick_scene.get_node("%HeaderLabel") as Label).text
 		_check(shown.contains(character.display_name) and shown.contains("HP %d/%d" % [character.max_hp, character.max_hp]), "the header shows %s and its HP" % id)
-		_check(pick_scene._run.deck.size() == 10 and pick_scene.get_node("%Body").get_child_count() == 1, "%s starts a run with a ten-card deck and one panel" % id)
+		_check(pick_scene._run.deck.size() == 10 and _panel_count(pick_scene.get_node("%Body")) == 1, "%s starts a run with a ten-card deck and one panel" % id)
 		pick_scene.queue_free()
 		await process_frame
 
