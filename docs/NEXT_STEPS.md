@@ -1,6 +1,6 @@
 # Next steps
 
-Last updated after the longer run. Everything below is on `main` and pushed (`89aa78e`) unless noted. The v0.2.0 release predates the longer run.
+Last updated after the thorns fix. Everything below is on `main` and pushed (`fdc4c0b`) unless noted. The v0.2.0 release predates the longer run.
 
 ## State
 
@@ -22,7 +22,6 @@ Last updated after the longer run. Everything below is on `main` and pushed (`89
 2. **Retune from playtest feedback**: `REWARD_HEAL`, `HEAL_BELOW`, class HP, card costs. Use the sim to check any change.
 3. **Polish items** (small, agent-sized):
    - The Conductor figure in the story and end scenes is generic; reuse the enemy portrait art.
-   - `Combat._check_end` reports a win when Thorns kill the last enemy on the same action that kills the player; `RunState.complete_combat` works around it by treating a win with a dead player as a defeat. Fix it in `combat/combat.gd`.
    - The Medium's mid-boss loss rate is low (2.7% for the smart bot against a target of 8 to 15%), the greedy bot loses about 37% to the Brakeman as the Deserter or Pickpocket (it never plays around Expose), and the tier 1 single-enemy pool is built but unused by this line.
    - `docs/LEVELS_DESIGN.md` explains the rest placement; the empty-platform beat has no per-character versions.
    - A hovered card loses its highlight when the hand rebuilds.
