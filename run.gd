@@ -66,12 +66,13 @@ func _ready() -> void:
 func _offer_continue(saved: RunState) -> void:
 	_pause_button.visible = false
 	_header_strip.set_relics([] as Array[RelicData])
+	_clear_body() # Back from the select screen arrives here with that screen still shown
 	_header.text = "Saved run found"
 	var box := _panel("Stop %d/%d, %s HP %d/%d, Gold %d, Deck %d" % [
 		saved.stop_index + 1, saved.stops.size(), saved.player.display_name, saved.player.hp, saved.player.max_hp, saved.gold, saved.deck.size(),
 	])
 	_add_button(box, "Continue", _continue_run.bind(saved))
-	_add_button(box, "New Run", _new_run)
+	_add_button(box, "New Run", _new_run.bind(_offer_continue.bind(saved)))
 
 
 func _continue_run(saved: RunState) -> void:
@@ -84,7 +85,9 @@ func _continue_run(saved: RunState) -> void:
 
 
 ## Every route to a new run goes through here: pick who boards the train, then `_start_run`.
-func _new_run() -> void:
+## `back`, when valid, adds a Back button that returns to the screen the player came from; there is
+## none when the select screen is the first screen (no save, or a save that failed to load).
+func _new_run(back := Callable()) -> void:
 	_pause_button.visible = false
 	_header_strip.set_relics([] as Array[RelicData])
 	_clear_body()
@@ -94,9 +97,15 @@ func _new_run() -> void:
 	_notice_shown = _notice != ""
 	_select_center = CenterContainer.new()
 	_body.add_child(_select_center)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 14)
+	_select_center.add_child(column)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
-	_select_center.add_child(row)
+	column.add_child(row)
+	if back.is_valid():
+		var back_button := _add_button(column, "Back", back)
+		back_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	for id in StarterContent.character_ids():
 		var character := StarterContent.character(id)
 		if character != null:
@@ -555,7 +564,7 @@ func _show_end() -> void:
 	]
 	_style_banner(summary)
 	box.add_child(summary)
-	_style_service(_add_button(box, "New Run", _new_run))
+	_style_service(_add_button(box, "New Run", _new_run.bind(_show_stop)))
 
 
 ## Saves the run at the start of a stop (never mid-fight). A failure is shown, not fatal.

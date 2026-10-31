@@ -88,6 +88,7 @@ func _initialize() -> void:
 	_check(scene._run == null and header.text.contains("Choose your passenger"), "a new game opens on the character select screen")
 	_check(not scene._pause_button.visible, "no Pause button on the select screen")
 	_check(_count_buttons(body, "Play as") == 3, "the select screen offers three characters")
+	_check(_find(body, "Back") == null, "the first screen has no Back button (nothing to go back to)")
 	var select_text := _all_text(body)
 	for id in StarterContent.character_ids():
 		var character := StarterContent.character(id)
@@ -242,6 +243,13 @@ func _initialize() -> void:
 	_find(body, "New Run").pressed.emit()
 	await process_frame
 	_check(_count_buttons(body, "Play as") == 3 and header.text.contains("Choose your passenger"), "New Run on the end card opens the select screen")
+	_check(_find(body, "Back") != null, "the select screen reached from the end card has a Back button")
+	_find(body, "Back").pressed.emit()
+	await process_frame
+	_check(_all_text(body).contains("Outcome: Escaped") and _find(body, "Back") == null, "Back on the select screen returns to the end card")
+	_find(body, "New Run").pressed.emit()
+	await process_frame
+	_check(_count_buttons(body, "Play as") == 3, "New Run still opens the select screen after going Back")
 	_find(body, "Play as The Pickpocket").pressed.emit()
 	await process_frame
 	_check(scene._run.character.id == &"pickpocket" and scene._run.player.max_hp == StarterContent.character(&"pickpocket").max_hp and scene._run.player.display_name == "The Pickpocket", "picking the Pickpocket starts a Pickpocket run")
@@ -276,6 +284,12 @@ func _initialize() -> void:
 	await process_frame
 	var resumed_body: Control = resumed_scene.get_node("%Body")
 	_check(resumed_scene._run == null and _find(resumed_body, "Continue") != null and _find(resumed_body, "New Run") != null, "a valid save offers Continue and New Run without starting")
+	_find(resumed_body, "New Run").pressed.emit()
+	await process_frame
+	_check(_count_buttons(resumed_body, "Play as") == 3 and _find(resumed_body, "Back") != null, "New Run from the Continue prompt shows the select screen with Back")
+	_find(resumed_body, "Back").pressed.emit()
+	await process_frame
+	_check(_find(resumed_body, "Continue") != null and _find(resumed_body, "New Run") != null and _find(resumed_body, "Back") == null, "Back returns to the Continue prompt")
 	_find(resumed_body, "Continue").pressed.emit()
 	await process_frame
 	var resumed: RunState = resumed_scene._run
