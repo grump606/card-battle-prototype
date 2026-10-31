@@ -9,14 +9,15 @@ extends MarginContainer
 signal play_pressed(character_id: StringName)
 
 const BORDER_WIDTH := 4
-const PAD := 7
+const PAD := 5
 const PORTRAIT_HEIGHT := 76.0
 ## The figures are drawn in a box this tall and scaled down to the portrait.
 const FIGURE_HEIGHT := 84.0
-## Starting-deck cards: four per row is what fits three panels across 1152 px.
-const DECK_CARD_SCALE := 0.62
+## Starting-deck cards: four per row at this scale just fits three panels across 1152 px (the width,
+## not the height, is the limit: fewer columns would need more rows than the panel has room for).
+const DECK_CARD_SCALE := 0.63
 const DECK_COLUMNS := 4
-const DECK_GAP := 3
+const DECK_GAP := 2
 const HOVER_SCALE := 1.02
 
 var character_id: StringName
@@ -140,7 +141,7 @@ func _deck_grid(cards: Array[CardData]) -> GridContainer:
 		view.tooltip_text = "%s (%d)\n%s" % [card.display_name, card.cost, card.describe()]
 		view.mouse_filter = Control.MOUSE_FILTER_PASS # still shows its tooltip
 		cell.add_child(view)
-		var count := _label("%d %s" % [counts[card.display_name], card.display_name], 10, _p.ink)
+		var count := _label("%d %s" % [counts[card.display_name], card.display_name], 11, _p.ink)
 		count.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		count.custom_minimum_size = Vector2(CardView.BASE.x * DECK_CARD_SCALE, 0)
 		cell.add_child(count)

@@ -49,6 +49,16 @@ func _find_panels(node: Node, out: Array[CharacterPanel]) -> void:
 		_find_panels(child, out)
 
 
+func _first_scroll(node: Node) -> ScrollContainer:
+	if node is ScrollContainer:
+		return node
+	for child in node.get_children():
+		var found := _first_scroll(child)
+		if found != null:
+			return found
+	return null
+
+
 func _first_enabled(body: Node) -> Button:
 	var found: Array = []
 	_buttons(body, found)
@@ -109,6 +119,8 @@ func _initialize() -> void:
 	var window := scene.get_global_rect()
 	_check(absf(group.get_center().x - window.get_center().x) <= 3.0 and absf(group.get_center().y - window.get_center().y) <= 3.0, "the panels are centred in the window (group %s, window %s)" % [group, window])
 	_check(group.position.x >= 0.0 and group.end.x <= window.end.x and group.position.y >= 0.0 and group.end.y <= window.end.y, "the panels fit inside the window")
+	if window.size.is_equal_approx(Vector2(1152, 648)):
+		_check(group.end.y <= 602.0, "the panels leave the bottom strip (Back, update notice) clear at 1152x648 (ends at %s)" % group.end.y)
 	_check(panels[0].play_button.has_focus(), "the first Play button has keyboard focus on opening")
 	panels[1].set_hovered(true)
 	_check(panels[1].is_lit() and panels[1].scale.x > 1.0 and panels[1].border_color() != panels[0].border_color(), "a hovered panel lights up")
@@ -462,6 +474,39 @@ func _initialize() -> void:
 	_find(alt_body, "Cancel").pressed.emit()
 	await process_frame
 	_check(alt.reward_pending() and _find(alt_body, "Skip") != null, "Cancel returns to the reward")
+	# A small deck's picker shows every card with no need to scroll; a 60-card deck scrolls.
+	_find(alt_body, "Remove a card").pressed.emit()
+	await process_frame
+	await process_frame
+	var small_scroll: ScrollContainer = _first_scroll(alt_body)
+	_check(small_scroll != null and CardView.find_all(small_scroll).size() == alt.deck.size(), "the remove picker holds every card of a normal deck in a scroll container")
+	_check(small_scroll.get_v_scroll_bar().max_value <= small_scroll.size.y + 1.0, "a normal deck's picker needs no scrolling")
+	_find(alt_body, "Cancel").pressed.emit()
+	await process_frame
+	root.size = Vector2i(1152, 648) # the real window; a headless one can be taller
+	var real_deck := alt.deck.duplicate()
+	var big_deck: Array[CardData] = []
+	for i in 60:
+		big_deck.append(real_deck[i % real_deck.size()])
+	alt.deck = big_deck
+	_find(alt_body, "Remove a card").pressed.emit()
+	await process_frame
+	await process_frame
+	var big_scroll: ScrollContainer = _first_scroll(alt_body)
+	var cancel := _find(alt_body, "Cancel")
+	var screen_rect := pause_scene.get_global_rect()
+	_check(big_scroll != null and CardView.find_all(big_scroll).size() == 60, "the 60-card picker holds all 60 cards in the scroll container")
+	_check(big_scroll.horizontal_scroll_mode == ScrollContainer.SCROLL_MODE_DISABLED and big_scroll.vertical_scroll_mode == ScrollContainer.SCROLL_MODE_AUTO, "the picker scrolls vertically only")
+	_check(big_scroll.get_v_scroll_bar().max_value > big_scroll.size.y + 1.0, "the 60-card grid is taller than the scroll viewport")
+	_check(big_scroll.get_global_rect().end.y <= screen_rect.end.y and big_scroll.get_global_rect().position.y >= screen_rect.position.y, "the scroll area is inside the window")
+	_check(cancel != null and not big_scroll.is_ancestor_of(cancel) and screen_rect.encloses(cancel.get_global_rect()), "Cancel stays outside the scrolled content and inside the window")
+	big_scroll.scroll_vertical = 100000 # to the bottom: the last row is reachable
+	await process_frame
+	var last_view := CardView.find_all(big_scroll).back() as CardView
+	_check(big_scroll.get_global_rect().grow(2).encloses(last_view.get_global_rect()), "scrolled down, the last card of a big deck is in view")
+	_find(alt_body, "Cancel").pressed.emit()
+	await process_frame
+	alt.deck.assign(real_deck)
 	_find(alt_body, "Remove a card").pressed.emit()
 	await process_frame
 	var alt_deck := alt.deck.size()

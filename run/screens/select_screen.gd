@@ -17,7 +17,7 @@ func show(host: Control, on_play: Callable, back := Callable()) -> void:
 	column.add_theme_constant_override("separation", 14)
 	_center.add_child(column)
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
+	row.add_theme_constant_override("separation", 6)
 	column.add_child(row)
 	if back.is_valid():
 		var back_button := add_button(column, "Back", back)
