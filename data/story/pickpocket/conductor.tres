@@ -5,7 +5,7 @@
 [resource]
 script = ExtResource("1_beat")
 title = "The Conductor"
-text = "A figure in a faded coat walks the aisle, punching holes in tickets that are not there. Where his face should be, the lamplight simply bends.
+text = "A figure in a faded coat walks the aisle, punching holes in tickets that are not there. Under the peaked cap there is only bone and two red coals.
 
 \"Quick fingers,\" he says, without moving his mouth. \"Everything on this train is already taken. Next stop is yours.\""
 button_text = "Keep your hands still"

@@ -7,7 +7,8 @@ extends ScreenScene
 const BAR := 34.0
 const RIBS := 9
 const STEEL := Color(0.16, 0.19, 0.25)
-const COAT := Color(0.06, 0.055, 0.075)
+## On-screen height of the Conductor (see ConductorFigure) in the aisle.
+const CONDUCTOR_HEIGHT := 210.0
 
 ## Which StoryContent beat this backs; see mood().
 var beat_index := 0
@@ -71,7 +72,7 @@ func _draw_tunnel(win: Rect2, vp: Vector2, speed: float, tint: Color, rib_streng
 		draw_line(vp + Vector2(side * 10.0, far.y), Vector2(vp.x + side * win.size.x * 0.22, win.end.y), Color(STEEL, 0.5), 2.0)
 
 
-## A coat-and-cap figure standing at `feet`, `height` px tall, facing front.
+## A hollow coat-and-cap figure standing at `feet`, `height` px tall, facing front.
 func _draw_coat_figure(feet: Vector2, height: float, coat: Color, rim: Color, hollow: bool, cap: bool) -> void:
 	var k := height / 100.0
 	draw_set_transform(feet, 0.0, Vector2(k, k))
@@ -156,12 +157,11 @@ func _draw_conductor(win: Rect2) -> void:
 	# The Conductor in his own pool of light, baton swinging time, with drifting tickets.
 	var feet := Vector2(win.size.x * 0.83, win.end.y - 18.0)
 	_halo(feet + Vector2(0, -90), 190.0, AMBER, 0.02 * flicker(2), 0.8)
-	_draw_coat_figure(feet, 200.0, COAT, Color(AMBER, 0.45 * flicker(2)), true, true)
-	var hand := feet + Vector2(34, -96)
-	var tip := hand + Vector2(20 + sin(time * 1.5) * 6.0, -40)
-	draw_line(feet + Vector2(20, -120), hand, COAT, 7.0)
-	draw_line(hand, tip, Color(0.9, 0.88, 0.82), 2.0)
-	draw_circle(tip, 3.0, Color(AMBER, 0.9))
+	# The same figure as his enemy portrait, mirrored to face the card and raised to the aisle's scale.
+	var k := CONDUCTOR_HEIGHT / ConductorFigure.HEIGHT
+	draw_set_transform(feet, 0.0, Vector2(-k, k))
+	ConductorFigure.draw(self, time, flicker(2))
+	draw_set_transform(Vector2.ZERO)
 	for i in 5:
 		var t := fposmod(time * 0.05 + i * 0.2, 1.0)
 		var p := Vector2(win.size.x * (0.72 + 0.2 * _noise[i]) + sin(time + i) * 10.0, win.end.y - 40.0 - t * win.size.y * 0.7)

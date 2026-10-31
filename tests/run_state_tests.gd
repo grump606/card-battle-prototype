@@ -365,8 +365,12 @@ func _test_story_content_loaders() -> void:
 			var own := StoryContent.beat(i, character_id)
 			_check(own != null and not own.text.is_empty(), "%s beat %d loads" % [character_id, i])
 		_check(StoryContent.beat(0, character_id).text != StoryContent.beat(0).text, "%s has their own boarding beat" % character_id)
-		_check(StoryContent.beat(2, character_id).text == StoryContent.beat(2).text, "%s falls back to the neutral station beat" % character_id)
+		for i in StoryContent.beat_count():
+			_check(StoryContent.beat(i, character_id).text.length() <= StoryContent.beat(i).text.length() + 120, "%s beat %d stays about the neutral length (text card fit)" % [character_id, i])
+		_check(StoryContent.beat(2, character_id).text != StoryContent.beat(2).text, "%s has their own empty-platform beat" % character_id)
+		_check(StoryContent.beat(2, character_id).title == StoryContent.beat(2).title and not StoryContent.beat(2, character_id).button_text.is_empty(), "%s keeps the station title and has a button" % character_id)
 	_check(StoryContent.beat(0, &"nobody").text == StoryContent.beat(0).text, "an unknown character falls back to the neutral beat")
+	_check(StoryContent.beat(2, &"nobody").text == StoryContent.beat(2).text, "an unknown character falls back to the neutral station beat")
 	var medium_run := RunState.new(8, &"medium")
 	_check(medium_run.current_beat().text == StoryContent.beat(0, &"medium").text, "a run shows their character's beat")
 	_check(StoryBeat.new().button_text == "Continue", "beat button text defaults to Continue")

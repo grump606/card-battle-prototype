@@ -1,6 +1,6 @@
 extends SceneTree
 ## Screenshots the rest stop (each class), the four story beats (Deserter, plus the Medium's
-## boarding beat), both end cards, and the same rest stop and end card at two moments to show motion.
+## boarding beat and the empty-platform beat of the Pickpocket and the Medium), both end cards, and the same rest stop and end card at two moments to show motion.
 ## Needs a rendering window (not --headless):
 ##   godot --path . -s res://tools/screens_sheet.gd -- <output dir>
 ## Default output is user://screen_sheets. The shots use the project's 1152x648 window.
@@ -22,6 +22,9 @@ func _initialize() -> void:
 		if id == &"medium":
 			_go_to(scene, RunState.StopType.STORY, 0)
 			await _shot(scene, "story_boarding_medium.png", 2.0)
+		if id != &"deserter": # the deserter's beat 2 is story_2.png below
+			_go_to(scene, RunState.StopType.STORY, 2)
+			await _shot(scene, "story_platform_%s.png" % id, 2.0)
 		scene.queue_free()
 		await process_frame
 	var scene: Control = await _run(&"deserter")

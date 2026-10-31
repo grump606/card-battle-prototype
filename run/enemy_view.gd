@@ -54,7 +54,7 @@ const ART_COLORS := {
 	&"whisperer": [Color(0.80, 0.78, 0.80), Color(0.78, 0.70, 1.0)],
 	&"hound": [Color(0.22, 0.17, 0.17), Color(1.0, 0.45, 0.15)],
 	&"crow": [Color(0.17, 0.17, 0.24), Color(0.98, 0.86, 0.40)],
-	&"conductor": [Color(0.24, 0.13, 0.19), Color(0.95, 0.30, 0.30)],
+	&"conductor": [ConductorFigure.BODY, ConductorFigure.GLOW],
 	&"brakeman": [Color(0.34, 0.15, 0.13), Color(1.0, 0.62, 0.22)],
 	&"ghost": [Color(0.58, 0.60, 0.68), Color(0.85, 0.90, 1.0)],
 }
@@ -738,35 +738,7 @@ func _art_crow(body: Color, glow: Color) -> void:
 
 
 func _art_conductor(body: Color, glow: Color) -> void:
-	var g := glow_level()
-	var gold := Color(0.92, 0.74, 0.32)
-	var dark := body.darkened(0.35)
-	var wave := sin(time * 1.5 + phase)
-	# Baton raised in one hand, swinging time.
-	var hand := Vector2(21, -38)
-	var tip := hand + Vector2(14 + wave * 3.0, -26)
-	_poly([Vector2(13, -44), Vector2(21, -38), Vector2(17, -30), Vector2(10, -34)], body)
-	draw_line(hand, tip, Color(0.92, 0.9, 0.85), 2.0)
-	draw_circle(tip, 2.2, Color(glow, g))
-	# Long coat with split tails and crimson lapels, a skeletal face under a peaked cap.
-	_poly([Vector2(-8, -3), Vector2(-17, -33), Vector2(-13, -50), Vector2(13, -50), Vector2(17, -33), Vector2(10, -3), Vector2(2, -14), Vector2(-2, -14)], body)
-	_poly([Vector2(-13, -50), Vector2(-3, -50), Vector2(0, -30), Vector2(-9, -34)], Color(0.55, 0.08, 0.14))
-	_poly([Vector2(13, -50), Vector2(3, -50), Vector2(0, -30), Vector2(9, -34)], Color(0.55, 0.08, 0.14))
-	_poly([Vector2(-10, 0), Vector2(-8, -3), Vector2(-2, -14), Vector2(-4, 0)], dark)
-	_poly([Vector2(10, 0), Vector2(10, -3), Vector2(2, -14), Vector2(5, 0)], dark)
-	for y in [-26.0, -21.0, -16.0]:
-		draw_circle(Vector2(0, y), 1.5, gold)
-	# Pocket watch on a swag of chain.
-	draw_polyline(PackedVector2Array([Vector2(-10, -34), Vector2(-6, -28), Vector2(0, -27)]), Color(gold, 0.9), 1.0, true)
-	_ball(Vector2(0, -26), 3.6, gold)
-	_ellipse(Vector2(0, -55), 6.0, 7.0, Color(0.82, 0.80, 0.78))
-	_poly([Vector2(-9, -58), Vector2(-8, -69), Vector2(8, -69), Vector2(9, -58)], dark.darkened(0.1))
-	draw_rect(Rect2(-9, -61, 18, 2.5), gold)
-	_poly([Vector2(-9, -58), Vector2(12, -58), Vector2(9, -61), Vector2(-9, -61)], Color(0.1, 0.06, 0.09))
-	for side in [-1.0, 1.0]:
-		draw_circle(Vector2(side * 2.6, -55), 1.8, Color(0.05, 0.02, 0.04))
-		_eye(Vector2(side * 2.6, -55), 0.9, glow)
-	draw_line(Vector2(-2.5, -50), Vector2(2.5, -50), Color(0.1, 0.05, 0.08), 1.2)
+	ConductorFigure.draw(self, time, glow_level(), phase, body, glow)
 
 
 ## The mid-boss: a hulking brakeman in a sooty apron, a spoked brake wheel raised in one gauntlet and

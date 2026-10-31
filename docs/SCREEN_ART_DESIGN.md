@@ -13,7 +13,7 @@ A dim carriage: four night windows, one hanging lantern above the panel, a woode
 A letterboxed window (34 px bars with a brass line) chosen by `beat_index`, `mood()` names it:
 
 - 0 boarding: dusk sky and skyline, platform planks, a carriage at the right with lit windows and an open door spilling light, two lamp posts, steam along the platform.
-- 1 conductor: an aisle in perspective (ribs rushing slowly, seat rows, two lanterns); a coat-and-cap Conductor with a void face and a swinging baton in his own pool of light at the right, tickets drifting up. His art in `enemy_view.gd` is instance-bound and being edited elsewhere, so a small figure helper is drawn here.
+- 1 conductor: an aisle in perspective (ribs rushing slowly, seat rows, two lanterns); the Conductor himself (skull face, crimson lapels, watch chain, swinging baton) in his own pool of light at the right, mirrored to face the card, about 210 px tall, tickets drifting up. He is drawn by `ConductorFigure.draw()` (`run/conductor_figure.gd`), the same code as his enemy portrait, so he is the same character everywhere. The hollow coats on the platform (beat 2) still use the scene's own faceless `_draw_coat_figure`. The end scenes show no figures.
 - 2 empty platform: night, one lamp with a cone of light at the left, five hollow coats waiting beneath it, a dark far lamp, an empty bench, low fog.
 - 3 last light: the tunnel ribs rush toward a pale breathing glow with rays, drawn above the card.
 - any other index: a dim generic tunnel with one lantern.

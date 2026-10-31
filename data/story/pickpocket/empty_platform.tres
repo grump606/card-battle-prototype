@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="StoryBeat" format=3]
+
+[ext_resource type="Script" path="res://run/story_beat.gd" id="1_beat"]
+
+[resource]
+script = ExtResource("1_beat")
+title = "The Silent Station"
+text = "The train sighs to a halt at a platform lit by a single guttering lamp. Your fingers still itch for the Brakeman's iron wheel. Rows of shapes stand waiting, perfectly still.
+
+Every pocket you try is sewn shut, and nobody stops you trying. Only the Conductor is left worth lifting from."
+button_text = "Check your pockets"

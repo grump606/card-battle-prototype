@@ -19,6 +19,8 @@ Enemies are drawn in code (`run/enemy_view.gd`, `class_name EnemyView`); no imag
 | Mourning Crow | crow with raised wings, falling tear | two pecks, Expose, a stoop |
 | The Conductor (boss) | coat, peaked cap, skull face, baton, watch chain, passengers behind | grander: see below |
 
+The Conductor's figure lives in `run/conductor_figure.gd` (`ConductorFigure.draw(canvas_item, time, glow_level, phase, body, glow)`, about 70 units tall, feet at the origin, facing right). `EnemyView._art_conductor` just calls it, and the story scene draws the same figure larger (mirrored) so he looks the same everywhere.
+
 ## Palette tokens (`EnemyView.PALETTES`)
 
 Normal: frame oxblood `(.52,.20,.17)`, fill soot `(.15,.12,.13)`, banner `(.33,.13,.12)`, accent `(.84,.38,.28)`, window `(.07,.06,.08)`. Boss: tarnished silver frame `(.66,.67,.73)`, near-black fill, crimson banner `(.46,.08,.13)` and accent `(.90,.20,.25)`, a second crimson line, corner diamonds, a wider panel and passenger ghosts. Silhouette body and glow colours per enemy are in `ART_COLORS`. Bars, kind colours and the gold target colour come from `CardView` (`HP_RED`, `kind_color`, `SELECT_GOLD`).
