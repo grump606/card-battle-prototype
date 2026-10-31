@@ -59,7 +59,11 @@ func _initialize() -> void:
 	_check(notice.visible and notice.latest_tag == "v0.3.1", "a newer release shows the notice")
 	_check(notice.label.text == "Update available: v0.3.1 (you have 0.3.0)", "the notice says what is available (got '%s')" % notice.label.text)
 	_check(notice.download_button != null and notice.download_button.visible and notice.dismiss_button != null, "the notice has Download and dismiss buttons")
-	_check(scene._run == null and scene.get_node("%HeaderLabel").text.contains("Choose your passenger"), "the select screen is still showing, untouched")
+	_check(scene.get_node("%HeaderLabel").text.contains("Main menu"), "the main menu is showing, untouched")
+	_find_button(scene.get_node("%Body"), "New Run").pressed.emit()
+	await process_frame
+	await process_frame
+	_check(notice.visible and scene._run == null and scene.get_node("%HeaderLabel").text.contains("Choose your passenger"), "the notice stays on the select screen")
 	_check(notice.get_parent() == scene and not scene.get_node("%Body").is_ancestor_of(notice), "the notice sits outside the body")
 	var window := scene.get_global_rect()
 	_check(window.encloses(notice.get_global_rect()), "the notice fits inside the window")
@@ -91,10 +95,10 @@ func _initialize() -> void:
 	await process_frame
 	notice = scene._update_notice
 	notice.current_version = "0.3.0"
-	_check(scene.get_node("%HeaderLabel").text.contains("Saved run found"), "setup: the Continue prompt is showing")
+	_check(scene.get_node("%HeaderLabel").text.contains("Main menu") and _find_button(scene.get_node("%Body"), "Continue") != null, "setup: the main menu offers Continue")
 	notice.handle_response(200, _release("v0.3.1"))
 	await process_frame
-	_check(notice.visible, "the Continue prompt shows the notice")
+	_check(notice.visible, "the main menu shows the notice")
 	var body: Control = scene.get_node("%Body")
 	var continue_button := _find_button(body, "Continue")
 	_check(continue_button != null, "the Continue button exists")

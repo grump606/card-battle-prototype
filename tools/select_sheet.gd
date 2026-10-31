@@ -18,6 +18,11 @@ func _initialize() -> void:
 	scene.save_path = out_dir.path_join("scratch_save.json") # never the real save
 	root.add_child(scene)
 	await _frames()
+	_save("menu.png")
+	for button in scene.find_children("*", "Button", true, false):
+		if (button as Button).text == "New Run":
+			(button as Button).pressed.emit()
+	await _frames()
 	var suffix := "_%sx%s" % [args[1], args[2]] if args.size() > 2 else ""
 	_save("select_default%s.png" % suffix)
 	var panels: Array[CharacterPanel] = []

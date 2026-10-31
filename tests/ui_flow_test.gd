@@ -94,11 +94,26 @@ func _initialize() -> void:
 	var body: Control = scene.get_node("%Body")
 	var header: Label = scene.get_node("%HeaderLabel")
 
-	# A new game starts on the character select screen.
-	_check(scene._run == null and header.text.contains("Choose your passenger"), "a new game opens on the character select screen")
+	# Launch opens the main menu: New Run and Exit, and no Continue without a save.
+	_check(scene._run == null and header.text.contains("Main menu"), "launch opens the main menu")
+	_check(not scene._pause_button.visible, "no Pause button on the main menu")
+	_check(_find(body, "New Run") != null and _find(body, "Exit") != null and _find(body, "Continue") == null, "the main menu offers New Run and Exit, and no Continue without a save")
+	_check(_count_buttons(body, "Play as") == 0, "the main menu does not show the characters yet")
+	var exits_fresh := [0]
+	scene.exit_callable = func() -> void: exits_fresh[0] += 1
+	_find(body, "Exit").pressed.emit()
+	_check(exits_fresh[0] == 1, "Exit leaves the game")
+	_find(body, "New Run").pressed.emit()
+	await process_frame
+	_check(scene._run == null and header.text.contains("Choose your passenger"), "New Run opens the character select screen")
 	_check(not scene._pause_button.visible, "no Pause button on the select screen")
 	_check(_count_buttons(body, "Play as") == 3, "the select screen offers three characters")
-	_check(_find(body, "Back") == null, "the first screen has no Back button (nothing to go back to)")
+	_check(_find(body, "Back") != null, "the select screen has a Back button")
+	_find(body, "Back").pressed.emit()
+	await process_frame
+	_check(header.text.contains("Main menu") and _find(body, "New Run") != null and _count_buttons(body, "Play as") == 0, "Back returns to the main menu")
+	_find(body, "New Run").pressed.emit()
+	await process_frame
 	var select_text := _all_text(body)
 	for id in StarterContent.character_ids():
 		var character := StarterContent.character(id)
@@ -356,6 +371,8 @@ func _initialize() -> void:
 		pick_scene.save_path = test_save
 		root.add_child(pick_scene)
 		await process_frame
+		_find(pick_scene.get_node("%Body"), "New Run").pressed.emit()
+		await process_frame
 		_find(pick_scene.get_node("%Body"), "Play as %s" % character.display_name).pressed.emit()
 		await process_frame
 		var shown := (pick_scene.get_node("%HeaderLabel") as Label).text
@@ -372,8 +389,12 @@ func _initialize() -> void:
 	bad_scene.save_path = test_save
 	root.add_child(bad_scene)
 	await process_frame
-	_check(bad_scene._run == null and _count_buttons(bad_scene.get_node("%Body"), "Play as") == 3, "a corrupt save falls back to the select screen")
+	var bad_body: Control = bad_scene.get_node("%Body")
+	_check(bad_scene._run == null and _find(bad_body, "New Run") != null and _find(bad_body, "Continue") == null, "a corrupt save shows the main menu without Continue")
 	_check((bad_scene.get_node("%HeaderLabel") as Label).text.contains("could not be loaded"), "a corrupt save shows a message")
+	_find(bad_body, "New Run").pressed.emit()
+	await process_frame
+	_check(_count_buttons(bad_body, "Play as") == 3, "New Run after a corrupt save opens the select screen")
 	bad_scene.queue_free()
 	await process_frame
 
@@ -384,6 +405,8 @@ func _initialize() -> void:
 	var exits := [0]
 	pause_scene.exit_callable = func() -> void: exits[0] += 1
 	root.add_child(pause_scene)
+	await process_frame
+	_find(pause_scene.get_node("%Body"), "New Run").pressed.emit()
 	await process_frame
 	_find(pause_scene.get_node("%Body"), "Play as The Medium").pressed.emit()
 	await process_frame
@@ -451,6 +474,7 @@ func _initialize() -> void:
 	_find(pause_scene._pause_box, "Yes").pressed.emit()
 	await process_frame
 	_check(not overlay.visible and not pause_scene.get_tree().paused and _count_buttons(pause_scene.get_node("%Body"), "Play as") == 3, "confirming closes the menu and opens the select screen")
+	_check(_find(pause_scene.get_node("%Body"), "Back") != null, "the select screen reached from the pause menu has a Back button")
 	_find(pause_scene.get_node("%Body"), "Play as The Deserter").pressed.emit()
 	await process_frame
 	_check(pause_scene._run.stop_index == 0 and pause_scene._run.character.id == &"deserter", "picking a character after abandoning starts a fresh run")

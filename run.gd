@@ -30,7 +30,7 @@ var _update_notice: UpdateNotice
 
 ## The screens. The vendor and reward screens keep their own view state between redraws.
 var _select := SelectScreen.new()
-var _saved_run := SavedRunScreen.new()
+var _main_menu := MainMenuScreen.new()
 var _combat := CombatScreen.new()
 var _reward := RewardScreen.new()
 var _story := StoryScreen.new()
@@ -48,14 +48,7 @@ func _ready() -> void:
 	_update_notice.start() # asynchronous and silent on any failure; skipped headless (docs/UPDATE_CHECK.md)
 	_body.resized.connect(_select.recenter)
 	resized.connect(_select.recenter)
-	var loaded := RunSave.load_file(save_path)
-	if loaded.run != null:
-		_offer_continue(loaded.run)
-	else:
-		if not loaded.missing:
-			_notice = "Saved run could not be loaded (%s). Started a new run." % loaded.error
-			push_warning(_notice)
-		_new_run()
+	_show_main_menu()
 
 
 ## Points a screen at the current run and the body before it is shown.
@@ -63,15 +56,22 @@ func _open(screen: RunScreen) -> void:
 	screen.attach(_run, _body, _show_stop)
 
 
-## Launch with a valid save: nothing starts until the player picks Continue or New Run.
-func _offer_continue(saved: RunState) -> void:
+## The start screen, shown on every launch and by Back from the select screen: nothing starts until
+## the player picks Continue (offered only when a valid save exists), New Run or Exit.
+func _show_main_menu() -> void:
 	_pause_button.visible = false
 	_update_notice.set_allowed(true)
 	_header_strip.set_relics([] as Array[RelicData])
-	_clear_body() # Back from the select screen arrives here with that screen still shown
-	_header.text = "Saved run found"
-	_saved_run.attach(saved, _body, _show_stop)
-	_saved_run.show(saved, _continue_run.bind(saved), _new_run.bind(_offer_continue.bind(saved)))
+	_clear_body()
+	var loaded := RunSave.load_file(save_path)
+	if loaded.run == null and not loaded.missing:
+		_notice = "Saved run could not be loaded (%s)." % loaded.error
+		push_warning(_notice)
+	var prefix := _notice + "\n" if _notice != "" else ""
+	_header.text = prefix + "Main menu"
+	_notice_shown = _notice != ""
+	_main_menu.attach(loaded.run, _body, _show_stop)
+	_main_menu.show(loaded.run, _continue_run.bind(loaded.run), _new_run.bind(_show_main_menu), func() -> void: exit_callable.call())
 
 
 func _continue_run(saved: RunState) -> void:
@@ -224,7 +224,7 @@ func _build_pause_menu() -> void:
 	# need to), so only the run body, which holds the fight, is made pausable.
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_body.process_mode = Node.PROCESS_MODE_PAUSABLE
-	_pause = PauseMenu.new(self, func() -> RunState: return _run, _save_and_exit, _new_run)
+	_pause = PauseMenu.new(self, func() -> RunState: return _run, _save_and_exit, _new_run.bind(_show_main_menu))
 	_pause.build()
 	_pause_button = _pause.button
 	_pause_overlay = _pause.overlay

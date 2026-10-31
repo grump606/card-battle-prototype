@@ -14,8 +14,8 @@
 | Script | Shows |
 | --- | --- |
 | `run_screen.gd` (`RunScreen`) | Base class: `attach(run, body, refresh)`, `panel()`, `add_backdrop()`, `add_remove_picker()`, and static helpers `add_button`, `make_label`, `card_view`, `style_banner`, `style_service` |
-| `select_screen.gd` | Character select, optional Back button, re-centring |
-| `saved_run_screen.gd` | Continue / New Run prompt for a valid save |
+| `select_screen.gd` | Character select, Back button along the bottom edge, re-centring |
+| `main_menu_screen.gd` | The start screen shown on every launch: Continue (valid save only), New Run, Exit |
 | `combat_screen.gd` | Embeds `battle.tscn` around the run's Combat |
 | `reward_screen.gd` | Card choices, Skip, once-per-run Remove / Heal, remove picker (keeps `removing`) |
 | `story_screen.gd` | Story beat on a paper card over `StoryScene` |

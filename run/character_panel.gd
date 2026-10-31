@@ -13,9 +13,9 @@ const PAD := 5
 const PORTRAIT_HEIGHT := 76.0
 ## The figures are drawn in a box this tall and scaled down to the portrait.
 const FIGURE_HEIGHT := 84.0
-## Starting-deck cards: four per row at this scale just fits three panels across 1152 px (the width,
-## not the height, is the limit: fewer columns would need more rows than the panel has room for).
-const DECK_CARD_SCALE := 0.63
+## Starting-deck cards: four per row, small enough that three panels sit comfortably across 1152 px
+## and the whole group fits the window height without crowding the edges.
+const DECK_CARD_SCALE := 0.5
 const DECK_COLUMNS := 4
 const DECK_GAP := 2
 const HOVER_SCALE := 1.02

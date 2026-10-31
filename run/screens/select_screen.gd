@@ -1,6 +1,6 @@
 class_name SelectScreen
 extends RunScreen
-## The character select screen: one panel per passenger, plus an optional Back button.
+## The character select screen: one panel per passenger, plus a Back button along the bottom edge.
 
 ## The container holding the character panels (re-centred as the layout moves).
 var _center: CenterContainer
@@ -20,8 +20,13 @@ func show(host: Control, on_play: Callable, back := Callable()) -> void:
 	row.add_theme_constant_override("separation", 6)
 	column.add_child(row)
 	if back.is_valid():
-		var back_button := add_button(column, "Back", back)
-		back_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		# Pinned to the bottom edge, outside the centred group, so the panels stay centred.
+		var back_button := Button.new()
+		back_button.text = "Back"
+		back_button.pressed.connect(back)
+		body.add_child(back_button)
+		back_button.custom_minimum_size = Vector2(140, 34)
+		back_button.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM, Control.PRESET_MODE_MINSIZE, 14)
 	for id in StarterContent.character_ids():
 		var character := StarterContent.character(id)
 		if character != null:
