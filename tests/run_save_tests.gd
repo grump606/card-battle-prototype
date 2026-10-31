@@ -201,6 +201,7 @@ func _test_offered_ids() -> void:
 	_check(not state.offered_ids.is_empty(), "setup: the walk saw rewards")
 	var copy := _clone(state)
 	_check(copy != null and copy.offered_ids == state.offered_ids, "offered card ids survive a save round trip")
+	_check(copy != null and copy.relics.is_empty() and RunSave.to_dict(state)["relics"] == [], "a run without relics saves an empty relic list")
 	# A save from before the field existed loads with an empty list.
 	var old := RunSave.to_dict(RunState.new(3))
 	old.erase("offered")

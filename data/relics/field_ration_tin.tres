@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="RelicData" format=3]
+
+[ext_resource type="Script" path="res://combat/relic_data.gd" id="1_relic"]
+
+[resource]
+script = ExtResource("1_relic")
+id = &"field_ration_tin"
+display_name = "Field Ration Tin"
+description = "Gain 3 Block at the start of every turn."
+character = &"deserter"
+kind = 2
+amount = 3
+price = 75

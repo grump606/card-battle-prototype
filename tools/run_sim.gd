@@ -43,6 +43,9 @@ func _initialize() -> void:
 	var heals_used := 0
 	var removes_used := 0
 	var stalls := 0
+	var runs_with_relics := 0
+	var escapes_with_relics := 0
+	var relics_bought := {} # relic id -> runs that ended holding it
 	var escape_hp := 0
 	var escape_deck := 0
 	var deaths_at := {} # stop index -> deaths
@@ -99,6 +102,12 @@ func _initialize() -> void:
 					printerr("run_sim: unsupported stop type %d at stop %d (%s)" % [stop.type, index, stop.describe()])
 					quit(1)
 					return
+		if not run.relics.is_empty():
+			runs_with_relics += 1
+			if run.escaped:
+				escapes_with_relics += 1
+		for relic in run.relics:
+			relics_bought[relic.id] = relics_bought.get(relic.id, 0) + 1
 		heals_used += 1 if run.reward_heal_used else 0
 		removes_used += 1 if run.reward_remove_used else 0
 		if run.escaped:
@@ -114,6 +123,11 @@ func _initialize() -> void:
 	print("Run sim: %d runs, seed %d, character %s, policy %s, player HP %d, turn cap %d" % [runs, base_seed, _character, "smart" if _smart else "greedy", start_hp, TURN_CAP])
 	print("Escape rate: %d/%d (%.1f%%)" % [escapes, runs, 100.0 * escapes / runs])
 	print("Free reward alternatives used: Heal in %d/%d runs, Remove in %d/%d runs" % [heals_used, runs, removes_used, runs])
+	print("Runs that bought a relic: %d/%d (escape rate with a relic %s, without %s)" % [runs_with_relics, runs, _rate(escapes_with_relics, runs_with_relics), _rate(escapes - escapes_with_relics, runs - runs_with_relics)])
+	var relic_ids: Array = relics_bought.keys()
+	relic_ids.sort()
+	for id: StringName in relic_ids:
+		print("  relic %-18s held at the end of %d runs" % [id, relics_bought[id]])
 	print("Stalls (fight abandoned at turn cap, run counted lost): %d" % stalls)
 	if escapes > 0:
 		print("On escapes: avg final HP %.2f, avg deck size %.2f" % [float(escape_hp) / escapes, float(escape_deck) / escapes])
@@ -145,6 +159,10 @@ func _initialize() -> void:
 		for entry: Array in played:
 			print("%-18s %6.2f" % [entry[0], float(entry[1]) / runs])
 	quit(0)
+
+
+static func _rate(part: int, whole: int) -> String:
+	return "n/a" if whole == 0 else "%.1f%%" % (100.0 * part / whole)
 
 
 ## Returns {runs, seed, policy} or an empty dictionary (after printing usage) on bad input.
@@ -254,7 +272,7 @@ func _card_score(run: RunState, card: CardData) -> float:
 
 
 ## Vendor policy: heal if at least half a heal's worth is missing and it is
-## affordable, then keep buying the best-scoring card it can afford, then leave.
+## affordable, buy the visit's relic if affordable, then keep buying the best-scoring card it can afford, then leave.
 ## Never removes cards. False on a RunState failure.
 func _shop(run: RunState) -> bool:
 	if _smart:
@@ -265,6 +283,8 @@ func _shop(run: RunState) -> bool:
 		return false
 	if run.player.max_hp - run.player.hp >= Vendor.HEAL_AMOUNT / 2:
 		run.vendor_buy_heal()
+	if not SimPolicy.buy_relic(run):
+		return false
 	while true:
 		var best_index := -1
 		var best_score := -INF

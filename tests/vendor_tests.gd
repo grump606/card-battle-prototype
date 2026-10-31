@@ -15,6 +15,7 @@ func run() -> int:
 	_test_failed_purchases_change_nothing()
 	_test_gold_for_win()
 	_test_exact_gold_and_price_boundaries()
+	_test_relic_offer_is_optional()
 	return _failures
 
 
@@ -35,6 +36,14 @@ func _ids(vendor: Vendor) -> Array:
 	for offer in vendor.offers():
 		ids.append((offer["card"] as CardData).id)
 	return ids
+
+
+## A vendor built without a relic pool sells no relic and its relic purchase fails cleanly.
+func _test_relic_offer_is_optional() -> void:
+	var vendor := _vendor(5, 500)
+	_check(vendor.relic_offer().is_empty(), "no relic pool: no relic offer")
+	var result := vendor.buy_relic(Combatant.new("p", 20))
+	_check(not result.ok and result.relic == null and vendor.gold == 500, "no relic pool: buy_relic fails and changes nothing")
 
 
 func _test_stock() -> void:

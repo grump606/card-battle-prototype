@@ -31,6 +31,8 @@ var turn: int = 0
 var phase: Phase = Phase.NOT_STARTED
 ## Cards played so far this turn (see MAX_PLAYS_PER_TURN).
 var plays_this_turn: int = 0
+## The run's relics for this fight (see RelicData); empty changes nothing.
+var relics: Array[RelicData] = []
 
 # EXPOSE turns that enemy intents applied to the player this enemy phase. They
 # are held back until the player's statuses have ticked, so they start counting
@@ -47,22 +49,23 @@ var _player_changed_link: Callable = state_changed.emit
 ## 1 to MAX_ENEMIES long or the player is already dead. Use this when the inputs
 ## come from data that could be bad, such as resources that failed to load;
 ## `new()` only asserts, which release builds skip.
-static func create(player_combatant: Combatant, deck: Array[CardData], enemy_datas: Array[EnemyData], rng_seed: int = 0) -> Combat:
+static func create(player_combatant: Combatant, deck: Array[CardData], enemy_datas: Array[EnemyData], rng_seed: int = 0, owned_relics: Array[RelicData] = []) -> Combat:
 	if enemy_datas.size() < 1 or enemy_datas.size() > MAX_ENEMIES:
 		push_error("Combat.create: needs 1 to %d enemies, got %d" % [MAX_ENEMIES, enemy_datas.size()])
 		return null
 	if player_combatant.is_dead():
 		push_error("Combat.create: the player is already dead")
 		return null
-	return Combat.new(player_combatant, deck, enemy_datas, rng_seed)
+	return Combat.new(player_combatant, deck, enemy_datas, rng_seed, owned_relics)
 
 
-func _init(player_combatant: Combatant, deck: Array[CardData], enemy_datas: Array[EnemyData], rng_seed: int = 0) -> void:
+func _init(player_combatant: Combatant, deck: Array[CardData], enemy_datas: Array[EnemyData], rng_seed: int = 0, owned_relics: Array[RelicData] = []) -> void:
 	assert(enemy_datas.size() >= 1 and enemy_datas.size() <= MAX_ENEMIES, "Combat needs 1 to %d enemies" % MAX_ENEMIES)
 	assert(not player_combatant.is_dead(), "Combat needs a living player")
 	var rng := RandomNumberGenerator.new()
 	rng.seed = rng_seed
 	player = player_combatant
+	relics = owned_relics.duplicate()
 	# The player outlives fights; statuses must not.
 	player.clear_statuses()
 	piles = CardPiles.new(deck, rng)
@@ -147,6 +150,8 @@ func play_card(hand_index: int, target_index: int = -1) -> bool:
 					_apply(effect, player, target)
 			_:
 				_apply(effect, player, player)
+	if not relics.is_empty():
+		_apply_play_relics()
 	card_played.emit(card, targets)
 	if not _check_end():
 		state_changed.emit()
@@ -208,8 +213,49 @@ func _begin_player_turn() -> void:
 	energy = ENERGY_PER_TURN
 	plays_this_turn = 0
 	player.start_turn_block()
+	_apply_turn_start_relics()
 	piles.draw(HAND_SIZE)
 	state_changed.emit()
+
+
+## Sum of `amount` over the owned relics of `kind` (0 with none).
+func _relic_total(kind: RelicData.Kind) -> int:
+	var total := 0
+	for relic in relics:
+		if relic.kind == kind:
+			total += relic.amount
+	return total
+
+
+## Relic effects that fire after a card's own effects: the first play of a turn draws, every
+## PLAYS_BLOCK_EVERY-th play gains Block. plays_this_turn already counts the card just played.
+func _apply_play_relics() -> void:
+	if plays_this_turn == 1 and _relic_total(RelicData.Kind.FIRST_PLAY_DRAW) > 0:
+		piles.draw(_relic_total(RelicData.Kind.FIRST_PLAY_DRAW))
+	if plays_this_turn % RelicData.PLAYS_BLOCK_EVERY == 0 and _relic_total(RelicData.Kind.PLAYS_BLOCK) > 0:
+		player.gain_block(_relic_total(RelicData.Kind.PLAYS_BLOCK))
+
+
+## Relic effects that fire as a turn begins. Runs after start_turn_block(), which resets Block
+## to Hold and Thorns to 0, so these grants are not wiped. Fight-start effects come first on turn 1
+## so that a starting Haunt already counts for the turn-start heal.
+func _apply_turn_start_relics() -> void:
+	if relics.is_empty():
+		return
+	var block := _relic_total(RelicData.Kind.TURN_START_BLOCK)
+	if turn == 1:
+		for enemy in enemies:
+			enemy.apply_status(Combatant.Status.HAUNTED, _relic_total(RelicData.Kind.FIGHT_START_HAUNT))
+		block += _relic_total(RelicData.Kind.FIGHT_START_BLOCK)
+		energy += _relic_total(RelicData.Kind.FIRST_TURN_ENERGY)
+	if block > 0:
+		player.gain_block(block)
+	var thorns := _relic_total(RelicData.Kind.TURN_START_THORNS)
+	if thorns > 0:
+		player.add_thorns(thorns)
+	var heal := _relic_total(RelicData.Kind.TURN_START_HEAL_PER_HAUNTED) * _haunted_count()
+	if heal > 0:
+		player.heal(heal)
 
 
 ## `target` receives damage and statuses; `source` receives block and draws.
@@ -234,7 +280,8 @@ func _apply(effect: CardEffect, source: Combatant, target: Combatant) -> void:
 				energy += maxi(effect.amount, 0)
 		CardEffect.Kind.HAUNT:
 			if source == player:
-				target.apply_status(Combatant.Status.HAUNTED, effect.amount)
+				# The Haunt bonus only boosts a Haunt that was going to be applied at all.
+				target.apply_status(Combatant.Status.HAUNTED, effect.amount + (_relic_total(RelicData.Kind.HAUNT_BONUS) if effect.amount > 0 else 0))
 		CardEffect.Kind.LOSE_HP:
 			source.lose_hp(effect.amount)
 		CardEffect.Kind.HEAL_PER_HAUNTED:

@@ -75,6 +75,19 @@ static func _expose_sets_up_damage(combat: Combat, index: int) -> bool:
 	return false
 
 
+## Vendor step shared by both bots: buys the visit's relic when it is affordable (the vendor stocks at
+## most one, so cheapest-eligible is that one), before any gold goes on cards. False only if the run
+## refuses an affordable relic.
+static func buy_relic(run: RunState) -> bool:
+	var offer := run.vendor().relic_offer()
+	if offer.is_empty() or offer["sold"] or offer["price"] > run.gold:
+		return true
+	if not run.vendor_buy_relic().ok:
+		printerr("SimPolicy: vendor refused an affordable relic")
+		return false
+	return true
+
+
 ## A card the policy treats as an attack: plain or scaled damage, or Haunt (damage over time).
 static func is_damage_card(card: CardData) -> bool:
 	for effect in card.effects:

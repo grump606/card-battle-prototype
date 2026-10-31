@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="RelicData" format=3]
+
+[ext_resource type="Script" path="res://combat/relic_data.gd" id="1_relic"]
+
+[resource]
+script = ExtResource("1_relic")
+id = &"marked_deck"
+display_name = "Marked Deck"
+description = "Every 3rd card you play in a turn gains 4 Block."
+character = &"pickpocket"
+kind = 6
+amount = 4
+price = 65

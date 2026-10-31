@@ -59,6 +59,13 @@ const ALL_CARD_PATHS: Array[String] = [
 	SPIRIT_TITHE_PATH, SEANCE_PATH, BLEED_THE_VEIL_PATH, RECKONING_PATH,
 	MARK_THE_WEAK_PATH, CUTTING_WORD_PATH, HAMSTRING_PATH, SECOND_WIND_PATH,
 ]
+## Every relic, in a fixed order. A relic's `character` tag says who may be offered it (empty = everyone).
+const RELIC_PATHS: Array[String] = [
+	"res://data/relics/travelling_flask.tres", "res://data/relics/brass_token_purse.tres", "res://data/relics/ticket_stub_charm.tres",
+	"res://data/relics/regulation_dog_tags.tres", "res://data/relics/barbed_greatcoat.tres", "res://data/relics/field_ration_tin.tres",
+	"res://data/relics/silk_gloves.tres", "res://data/relics/skeleton_key.tres", "res://data/relics/marked_deck.tres",
+	"res://data/relics/grave_dirt.tres", "res://data/relics/planchette.tres", "res://data/relics/bone_rosary.tres",
+]
 ## Playable characters, in the order a selection screen lists them.
 const CHARACTER_PATHS := {
 	&"deserter": "res://data/characters/deserter.tres",
@@ -137,6 +144,30 @@ static func reward_pool(character_id: StringName) -> Array[CardData]:
 	for card in all_cards():
 		if card.character == &"" or card.character == character_id:
 			pool.append(card)
+	return pool
+
+
+## Every relic that loads, in RELIC_PATHS order. Empty (cause logged) if any fails to load.
+static func all_relics() -> Array[RelicData]:
+	var relics: Array[RelicData] = []
+	for path in RELIC_PATHS:
+		var relic: RelicData = null
+		if ResourceLoader.exists(path):
+			relic = load(path) as RelicData
+		if relic == null:
+			push_error("StarterContent: missing or non-RelicData resource: %s" % path)
+			var empty: Array[RelicData] = []
+			return empty
+		relics.append(relic)
+	return relics
+
+
+## The relics a vendor may offer `character_id`: every neutral relic plus the ones tagged for them.
+static func relic_pool(character_id: StringName) -> Array[RelicData]:
+	var pool: Array[RelicData] = []
+	for relic in all_relics():
+		if relic.character == &"" or relic.character == character_id:
+			pool.append(relic)
 	return pool
 
 

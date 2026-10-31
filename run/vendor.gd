@@ -1,7 +1,7 @@
 class_name Vendor
 extends RefCounted
-## One vendor visit: three cards for sale plus two fixed services (remove a card,
-## heal). Pure logic, no nodes, no RunState dependency.
+## One vendor visit: three cards for sale, at most one relic, plus two fixed services
+## (remove a card, heal). Pure logic, no nodes, no RunState dependency.
 ##
 ## Wiring: `var vendor := Vendor.new(run_deck, run_rng, run_gold)`. The Vendor
 ## MUTATES `run_deck` (the exact array passed in) on buy_card/remove_card, and
@@ -78,6 +78,8 @@ class Result extends RefCounted:
 	var card: CardData = null
 	## buy_heal: HP the player actually regained.
 	var healed := 0
+	## buy_relic: the relic bought.
+	var relic: RelicData = null
 
 	static func fail(why: String) -> Result:
 		var result := Result.new()
@@ -89,12 +91,15 @@ class Result extends RefCounted:
 var gold: int
 var _deck: Array[CardData]
 var _offers: Array[Dictionary] = []  # {card: CardData, price: int, sold: bool}
+var _relic_offer: Dictionary = {}  # {relic: RelicData, price: int, sold: bool}, empty when none is stocked
 var _removed := false
 var _healed := false
 
 
 ## `card_pool` is what the stock is drawn from (a character's pool); empty means every card.
-func _init(deck: Array[CardData], rng: RandomNumberGenerator, starting_gold: int, card_pool: Array[CardData] = []) -> void:
+## `relic_pool` is the relics that may be offered (the caller leaves out the ones already
+## owned); one is picked after the card stock, and none is offered when it is empty.
+func _init(deck: Array[CardData], rng: RandomNumberGenerator, starting_gold: int, card_pool: Array[CardData] = [], relic_pool: Array[RelicData] = []) -> void:
 	_deck = deck
 	if starting_gold < 0:
 		push_error("Vendor: starting gold must be >= 0, got %d" % starting_gold)
@@ -118,6 +123,10 @@ func _init(deck: Array[CardData], rng: RandomNumberGenerator, starting_gold: int
 		_offers.append({"card": pool[i], "price": card_price(pool[i]), "sold": false})
 	if _offers.size() < STOCK_CARDS:
 		push_error("Vendor: could only stock %d of %d cards" % [_offers.size(), STOCK_CARDS])
+	# After the card shuffle, so the card stock never depends on whether a relic is offered.
+	if not relic_pool.is_empty():
+		var relic := relic_pool[rng.randi_range(0, relic_pool.size() - 1)] if relic_pool.size() > 1 else relic_pool[0]
+		_relic_offer = {"relic": relic, "price": relic.price, "sold": false}
 
 
 ## Cards for sale: copies of {card: CardData, price: int, sold: bool}, in display order.
@@ -126,6 +135,12 @@ func offers() -> Array[Dictionary]:
 	for offer in _offers:
 		copy.append(offer.duplicate())
 	return copy
+
+
+## The relic for sale as a copy of {relic: RelicData, price: int, sold: bool}, or an empty
+## dictionary when this visit has none.
+func relic_offer() -> Dictionary:
+	return _relic_offer.duplicate()
 
 
 func has_removed() -> bool:
@@ -155,6 +170,33 @@ func buy_card(index: int) -> Result:
 	result.ok = true
 	result.spent = price
 	result.card = offer["card"]
+	return result
+
+
+## Buys the relic and deducts its price. A MAX_HP relic raises `player`'s max HP and current
+## HP here, once; the caller keeps the relic (Result.relic) for its other effects.
+func buy_relic(player: Combatant) -> Result:
+	if player == null:
+		push_error("Vendor.buy_relic: player is required")
+		return Result.fail("no player")
+	if _relic_offer.is_empty():
+		return Result.fail("no relic for sale")
+	if _relic_offer["sold"]:
+		return Result.fail("already sold")
+	var price: int = _relic_offer["price"]
+	if gold < price:
+		return Result.fail("not enough gold")
+	gold -= price
+	_relic_offer["sold"] = true
+	var relic: RelicData = _relic_offer["relic"]
+	if relic.kind == RelicData.Kind.MAX_HP:
+		player.max_hp += relic.amount
+		player.hp += relic.amount
+		player.changed.emit()
+	var result := Result.new()
+	result.ok = true
+	result.spent = price
+	result.relic = relic
 	return result
 
 

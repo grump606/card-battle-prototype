@@ -258,6 +258,8 @@ static func shop(run: RunState) -> bool:
 		return false
 	if run.player.max_hp - run.player.hp >= Vendor.HEAL_AMOUNT / 2:
 		run.vendor_buy_heal()
+	if not SimPolicy.buy_relic(run):
+		return false
 	while true:
 		var weights := _weights(run.deck)
 		var average := _average_score(run.deck, weights)

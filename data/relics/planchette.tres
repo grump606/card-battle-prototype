@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="RelicData" format=3]
+
+[ext_resource type="Script" path="res://combat/relic_data.gd" id="1_relic"]
+
+[resource]
+script = ExtResource("1_relic")
+id = &"planchette"
+display_name = "Planchette"
+description = "At the start of every turn, heal 2 HP per Haunted enemy."
+character = &"medium"
+kind = 10
+amount = 2
+price = 70

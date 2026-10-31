@@ -441,6 +441,8 @@ func _test_vendor_flow() -> void:
 	var poor := _at_vendor(13)
 	poor.gold = 0
 	_check(poor.vendor() != null and not poor.vendor_buy_card(0).ok and poor.gold == 0, "with no gold every purchase is refused, gold stays at 0")
+	_check(not poor.vendor_buy_relic().ok and poor.gold == 0 and poor.relics.is_empty(), "with no gold the relic is refused too")
+	_check(not poor.vendor().relic_offer().is_empty(), "every vendor visit stocks a relic")
 
 
 # These misuse the API on purpose; the push_error output is expected here.

@@ -44,6 +44,9 @@ static func to_dict(run: RunState) -> Dictionary:
 	var offered: Array = []
 	for id in run.offered_ids:
 		offered.append(String(id))
+	var relic_ids: Array = []
+	for relic in run.relics:
+		relic_ids.append(String(relic.id))
 	return {
 		"version": VERSION,
 		"character": String(run.character.id),
@@ -56,6 +59,7 @@ static func to_dict(run: RunState) -> Dictionary:
 		"offered": offered,
 		"reward_remove_used": run.reward_remove_used,
 		"reward_heal_used": run.reward_heal_used,
+		"relics": relic_ids,
 		# A string: JSON numbers are doubles and would round a 64-bit state.
 		"rng_state": str(run.rng_state()),
 	}
@@ -123,6 +127,21 @@ static func from_dict(data: Variant) -> Result:
 	for key in ["reward_remove_used", "reward_heal_used"]:
 		if d.has(key) and typeof(d[key]) != TYPE_BOOL:
 			return Result.fail("bad %s" % key)
+	# Added later still: a save without it is a run that bought no relics. The saved max HP already
+	# includes any MAX_HP relic, so restoring the relic list must not apply it again.
+	var relics: Array[RelicData] = []
+	if d.has("relics"):
+		var raw_relics: Variant = d["relics"]
+		var known_relics := {}
+		for relic in StarterContent.relic_pool(run.character.id):
+			known_relics[String(relic.id)] = relic
+		if typeof(raw_relics) != TYPE_ARRAY or (raw_relics as Array).size() > known_relics.size():
+			return Result.fail("bad relics list")
+		for entry in raw_relics:
+			if typeof(entry) != TYPE_STRING or not known_relics.has(entry) or relics.has(known_relics[entry]):
+				return Result.fail("relics list has an unknown or repeated relic")
+			relics.append(known_relics[entry])
+	run.relics = relics
 	run.offered_ids = offered
 	run.reward_remove_used = d.get("reward_remove_used", false)
 	run.reward_heal_used = d.get("reward_heal_used", false)

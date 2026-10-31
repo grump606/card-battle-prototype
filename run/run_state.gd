@@ -72,6 +72,8 @@ var offered_ids: Array[StringName] = []
 ## Saved with the run.
 var reward_remove_used := false
 var reward_heal_used := false
+## Relics bought from vendors this run, in purchase order. Saved with the run (as ids).
+var relics: Array[RelicData] = []
 
 var _vendor: Vendor = null
 var _active_combat: Combat = null
@@ -129,7 +131,7 @@ func start_combat() -> Combat:
 		_active_combat.abandon()
 		_active_combat = null
 	var enemies := StarterContent.boss_encounter() if stop.boss else StarterContent.varied_encounter(stop.enemy_count, _rng)
-	_active_combat = Combat.create(player, deck, enemies, _rng.randi())
+	_active_combat = Combat.create(player, deck, enemies, _rng.randi(), relics)
 	return _active_combat
 
 
@@ -153,6 +155,12 @@ func complete_combat(victory: bool) -> void:
 		_advance()
 		return
 	gold += Vendor.gold_for_win(stop.enemy_count)
+	for relic in relics:
+		match relic.kind:
+			RelicData.Kind.WIN_GOLD:
+				gold += relic.amount
+			RelicData.Kind.WIN_HEAL:
+				player.heal(relic.amount)
 	_roll_rewards()
 	_reward_pending = true
 
@@ -262,7 +270,7 @@ func vendor() -> Vendor:
 	if stop == null or stop.type != StopType.VENDOR:
 		return null
 	if _vendor == null:
-		_vendor = Vendor.new(deck, _rng, gold, StarterContent.reward_pool(character.id))
+		_vendor = Vendor.new(deck, _rng, gold, StarterContent.reward_pool(character.id), _unowned_relics())
 	return _vendor
 
 
@@ -296,6 +304,19 @@ func vendor_buy_heal() -> Vendor.Result:
 	return result
 
 
+## Buys the visit's relic: it joins `relics` and a MAX_HP relic raises the player's max HP
+## (once, here; a restored save already holds the raised max HP).
+func vendor_buy_relic() -> Vendor.Result:
+	var v := _vendor_with_run_gold()
+	if v == null:
+		return Vendor.Result.fail("not at a vendor")
+	var result := v.buy_relic(player)
+	gold = v.gold
+	if result.ok:
+		relics.append(result.relic)
+	return result
+
+
 ## Leaves the vendor and moves on. False if not at a vendor stop.
 func leave_vendor() -> bool:
 	if vendor() == null:
@@ -303,6 +324,15 @@ func leave_vendor() -> bool:
 	_vendor = null
 	_advance()
 	return true
+
+
+## The character's relic pool minus the relics already owned.
+func _unowned_relics() -> Array[RelicData]:
+	var left: Array[RelicData] = []
+	for relic in StarterContent.relic_pool(character.id):
+		if not relics.has(relic):
+			left.append(relic)
+	return left
 
 
 func _vendor_with_run_gold() -> Vendor:
