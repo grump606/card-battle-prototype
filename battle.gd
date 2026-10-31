@@ -6,6 +6,8 @@ const PLAYER_START_HP := 40
 const MAX_HAND_KEYS := 9
 ## Hand cards are drawn smaller than full size so a hand fits beside the enemy row and log.
 const HAND_CARD_SCALE := 0.85
+## Relic badges beside the HP line are drawn a little smaller than full size.
+const BADGE_SCALE := 0.85
 
 # Derived from the rules constants so the text cannot drift from them.
 const EXPOSED_MULTIPLIER_TEXT := "%.1fx" % (float(Combatant.EXPOSED_NUM) / Combatant.EXPOSED_DEN)
@@ -13,6 +15,7 @@ const EXPOSED_TOOLTIP := "Takes " + EXPOSED_MULTIPLIER_TEXT + " damage, rounded 
 
 @onready var _backdrop: BattleBackdrop = %Backdrop
 @onready var _enemy_row: HBoxContainer = %EnemyRow
+@onready var _player_row: HBoxContainer = %PlayerRow
 @onready var _player_label: Label = %PlayerLabel
 @onready var _energy_label: Label = %EnergyLabel
 @onready var _pile_label: Label = %PileLabel
@@ -33,8 +36,11 @@ var external_combat: Combat = null
 ## Also set before adding to the tree: picks the backdrop look (the Conductor fight, the class tint).
 var boss_fight := false
 var character_id: StringName = &""
+## The run's relics, shown as badges beside the player's HP (the strip hides when there are none).
+var relics: Array[RelicData] = []
 
 var _combat: Combat
+var _relic_strip: RelicStrip
 var _victory := false
 ## Index into Combat.enemies that cards will target.
 var _target_index: int = 0
@@ -44,6 +50,8 @@ var _enemy_views: Array[EnemyView] = []
 
 func _ready() -> void:
 	_backdrop.set_variant(boss_fight, character_id)
+	_relic_strip = RelicStrip.create(relics, BADGE_SCALE)
+	_player_row.add_child(_relic_strip)
 	_end_turn_button.pressed.connect(_on_end_turn_pressed)
 	_new_fight_button.pressed.connect(_on_continue_pressed)
 	# Keys are handled in _unhandled_key_input; focusable buttons would let

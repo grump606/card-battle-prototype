@@ -23,7 +23,13 @@ offset_bottom = -16.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="HeaderLabel" type="Label" parent="Layout"]
+[node name="HeaderRow" type="HBoxContainer" parent="Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 14
+alignment = 1
+
+[node name="HeaderLabel" type="Label" parent="Layout/HeaderRow"]
 unique_name_in_owner = true
 layout_mode = 2
 horizontal_alignment = 1

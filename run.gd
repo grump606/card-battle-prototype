@@ -10,13 +10,20 @@ const BATTLE_SCENE := preload("res://battle.tscn")
 const OFFER_CARD_SCALE := 1.2
 const PICKER_CARD_SCALE := 0.7
 const PICKER_COLUMNS := 10
+## The vendor's relic slot: badge size and the width of the plate around it.
+const RELIC_OFFER_SCALE := 1.5
+const RELIC_SLOT_WIDTH := 150.0
 ## Height reserved above the vendor's speech banner for the shopkeeper's hood (see VendorScene).
 const VENDOR_HEAD_HEIGHT := 104.0
 
+@onready var _header_row: HBoxContainer = %HeaderRow
 @onready var _header: Label = %HeaderLabel
 @onready var _body: Control = %Body
 
 var _run: RunState
+## The run's relics beside the header line (hidden when there are none, on the select screens and
+## during a fight, where the battle screen shows them itself).
+var _header_strip: RelicStrip
 ## Result text of the last vendor action, shown on the vendor panel.
 var _vendor_message := ""
 ## True while the vendor panel shows the pick-a-card-to-remove list.
@@ -40,6 +47,8 @@ var exit_callable: Callable = func() -> void: get_tree().quit()
 
 
 func _ready() -> void:
+	_header_strip = RelicStrip.create([] as Array[RelicData])
+	_header_row.add_child(_header_strip)
 	_build_pause_menu()
 	_body.resized.connect(_recenter_select)
 	resized.connect(_recenter_select)
@@ -56,6 +65,7 @@ func _ready() -> void:
 ## Launch with a valid save: nothing starts until the player picks Continue or New Run.
 func _offer_continue(saved: RunState) -> void:
 	_pause_button.visible = false
+	_header_strip.set_relics([] as Array[RelicData])
 	_header.text = "Saved run found"
 	var box := _panel("Stop %d/%d, %s HP %d/%d, Gold %d, Deck %d" % [
 		saved.stop_index + 1, saved.stops.size(), saved.player.display_name, saved.player.hp, saved.player.max_hp, saved.gold, saved.deck.size(),
@@ -76,6 +86,7 @@ func _continue_run(saved: RunState) -> void:
 ## Every route to a new run goes through here: pick who boards the train, then `_start_run`.
 func _new_run() -> void:
 	_pause_button.visible = false
+	_header_strip.set_relics([] as Array[RelicData])
 	_clear_body()
 	var prefix := _notice + "
 " if _notice != "" else ""
@@ -177,6 +188,8 @@ func _update_header() -> void:
 	]
 	_notice_shown = _notice != ""
 	_pause_button.visible = not _run.finished
+	var fighting := not _run.finished and not _run.reward_pending() and _run.current_stop().type == RunState.StopType.COMBAT
+	_header_strip.set_relics([] as Array[RelicData] if fighting else _run.relics)
 
 
 func _clear_body() -> void:
@@ -196,6 +209,7 @@ func _show_combat() -> void:
 	battle.external_combat = combat
 	battle.boss_fight = _run.current_stop().boss
 	battle.character_id = _run.character.id if _run.character != null else &""
+	battle.relics = _run.relics
 	battle.fight_finished.connect(_on_fight_finished)
 	_body.add_child(battle)
 
@@ -348,6 +362,9 @@ func _show_vendor() -> void:
 		column.add_child(view)
 		column.add_child(_label("Sold" if sold else "%d gold" % price))
 		row.add_child(column)
+	var relic_offer := vendor.relic_offer()
+	if not relic_offer.is_empty():
+		row.add_child(_relic_slot(relic_offer))
 	stall.counter_anchor = row
 	# The services sit on the counter front in a row, each with a prop drawn to its left by the stall
 	# (the spacers keep the row centred).
@@ -367,6 +384,48 @@ func _show_vendor() -> void:
 	for button in [remove, heal, leave]:
 		_style_service(button)
 		stall.service_anchors.append(button)
+
+
+## The vendor's relic for sale, beside the cards: badge, name, effect, price and a Buy button. Like a
+## card offer it shows "Sold" afterwards and cannot be bought without the gold.
+func _relic_slot(offer: Dictionary) -> Control:
+	var relic: RelicData = offer["relic"]
+	var sold: bool = offer["sold"]
+	var price: int = offer["price"]
+	var affordable := _run.gold >= price
+	var plate := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.04, 0.03, 0.03, 0.9)
+	style.set_border_width_all(2)
+	style.border_color = Color(0.78, 0.55, 0.24)
+	style.set_corner_radius_all(6)
+	style.set_content_margin_all(10)
+	plate.add_theme_stylebox_override("panel", style)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 5)
+	column.custom_minimum_size = Vector2(RELIC_SLOT_WIDTH, 0)
+	plate.add_child(column)
+	var view := RelicView.new()
+	view.view_scale = RELIC_OFFER_SCALE
+	view.set_relic(relic)
+	view.dimmed = sold or not affordable
+	view.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	column.add_child(view)
+	var name_label := _label(relic.display_name)
+	name_label.add_theme_font_size_override("font_size", 17)
+	name_label.add_theme_color_override("font_color", Color(1.0, 0.93, 0.78))
+	column.add_child(name_label)
+	var text := _label(relic.description)
+	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	text.add_theme_color_override("font_color", Color(0.86, 0.82, 0.74))
+	column.add_child(text)
+	var price_label := _label("Sold" if sold else "%d gold" % price)
+	price_label.add_theme_color_override("font_color", Color(1.0, 0.93, 0.78))
+	column.add_child(price_label)
+	var buy := _add_button(column, "Buy relic", _buy_relic)
+	buy.disabled = sold or not affordable
+	_style_service(buy)
+	return plate
 
 
 ## A dark ribbon with a brass edge, so the vendor's words read over the art.
@@ -427,6 +486,11 @@ func _show_remove_picker(box: VBoxContainer, on_pick: Callable, on_cancel: Calla
 
 func _buy_card(offer_index: int) -> void:
 	_finish_vendor_action(_run.vendor_buy_card(offer_index), "Bought")
+
+
+func _buy_relic() -> void:
+	var result := _run.vendor_buy_relic()
+	_finish_vendor_action(result, "Bought %s" % result.relic.display_name if result.ok else "")
 
 
 func _buy_heal() -> void:
@@ -593,6 +657,11 @@ func _show_pause_options(message: String) -> void:
 	_add_pause_label("Paused. Nothing moves until you do.")
 	if message != "":
 		_add_pause_label(message)
+	if _run != null and not _run.relics.is_empty():
+		_add_pause_label("Relics")
+		var strip := RelicStrip.create(_run.relics)
+		strip.alignment = BoxContainer.ALIGNMENT_CENTER
+		_pause_box.add_child(strip)
 	_add_button(_pause_box, "Continue", _set_paused.bind(false))
 	_add_button(_pause_box, "Save & Exit", _save_and_exit)
 	_add_button(_pause_box, "New Run", _confirm_new_run)
