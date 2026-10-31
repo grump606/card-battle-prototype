@@ -1,6 +1,6 @@
 # Next steps
 
-Last updated after the v0.3.2 release. Everything below is on `main` and pushed (`85a871b`) unless noted.
+Last updated after the polish pass. Everything below is on `main` and pushed (`7f71234`) unless noted. The latest release is v0.3.2, which predates the polish pass (the hover fix, backdrop tint, scrolling remove picker, Conductor art in the story scene and the new empty-platform beats); bump the version and rebuild to ship them.
 
 ## State
 
@@ -23,15 +23,13 @@ Last updated after the v0.3.2 release. Everything below is on `main` and pushed 
 
 1. **Playtest each class** and say how it feels. The numbers are tuned against bots, not people. The greedy bot is probably the closer guide to a new player, and it escapes only about 20% of runs as the Pickpocket or Medium, so the longer run may be too hard. Watch the Deserter (skill-sensitive) and the Medium (very HP-sensitive). Also check the Brakeman fight, the pause menu is centered in a normal F5 launch, and the new backdrop and screen scenes in motion.
 2. **Retune from playtest feedback**: `REWARD_HEAL`, `HEAL_BELOW`, class HP, card costs. Use the sim to check any change.
-3. **Polish items** (small, agent-sized):
-   - The Conductor figure in the story and end scenes is generic; reuse the enemy portrait art.
-   - The Medium's mid-boss loss rate is low (2.7% for the smart bot against a target of 8 to 15%), the greedy bot loses about 37% to the Brakeman as the Deserter or Pickpocket (it never plays around Expose), and the tier 1 single-enemy pool is built but unused by this line.
-   - `docs/LEVELS_DESIGN.md` explains the rest placement; the empty-platform beat has no per-character versions.
-   - A hovered card loses its highlight when the hand rebuilds.
-   - The remove picker does not scroll for decks over about 30 cards.
-   - Deck cards on the select screen are small (scale 0.62).
-   - The class tint on the battle backdrop is faint (`TINT_AMOUNT` 14%).
+3. **Remaining polish and balance items**:
+   - The Medium's mid-boss loss rate is low (2.7% for the smart bot against a target of 8 to 15%), the greedy bot loses about 37% to the Brakeman as the Deserter or Pickpocket (it never plays around Expose), and the tier 1 single-enemy pool is built but unused by this line. Wait for playtest feedback before tuning.
+   - Deck cards on the select screen are still small (scale 0.63, only slightly larger than before): three panels at 1152 px leave no room. A real jump needs a different layout, such as dropping the portrait and pitch text for three columns, or scaling with the window.
+   - The Conductor figure in the story scene now uses his enemy portrait art (`run/conductor_figure.gd`); the platform coats keep the generic figure, and the end scenes have no figures.
    - Adding content: follow `docs/ADDING_CONTENT.md`. Tests now fail when a card, relic, enemy or character file is missing from its registry or an enemy has no `ART_KEYS` entry.
+
+Done in the polish pass: a hovered card keeps its highlight after the hand rebuilds; the class tint on the battle backdrop is stronger (`TINT_AMOUNT` 0.32, halved on boss fights); the remove picker scrolls for big decks with Cancel always visible; per-character empty-platform beats; the Conductor story text now matches his skull face.
 
 ## Smaller open items
 
