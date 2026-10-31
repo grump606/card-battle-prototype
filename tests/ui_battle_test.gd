@@ -164,6 +164,34 @@ func _initialize() -> void:
 			check(dimmed[i].state == CardView.State.UNPLAYABLE and dimmed[i].note == "NEED %d ENERGY" % c2.piles.hand[i].cost and not dimmed[i].is_clickable(), "a card that costs too much shows how much energy it needs")
 	check(any_costly or dimmed.is_empty(), "setup: the hand has a card that costs energy")
 	_check_preview_matches_damage(node, c2)
+	# Hover survives a hand rebuild: the card under the pointer is raised again, no other one is.
+	c2.energy = Combat.ENERGY_PER_TURN
+	c2.piles.hand.clear()
+	for id in ["bash", "cold_steel", "last_pocket"]:
+		c2.piles.hand.append(load("res://data/cards/%s.tres" % id))
+	node._refresh()
+	await process_frame
+	var hv := CardView.find_all(node._hand_box)
+	check(hv.size() >= 2, "setup: a hand of two or more for the hover checks")
+	var over := hv[1].get_global_rect().get_center()
+	hv[1].set_hovered(true)
+	node._refresh() # rebuilds every view, all un-hovered
+	await process_frame
+	var nv := CardView.find_all(node._hand_box)
+	check(nv[1] != hv[1] and not nv[1]._hovered, "a rebuilt card starts un-hovered")
+	node._restore_hover(over)
+	var hovered_count := 0
+	for v in nv:
+		hovered_count += 1 if v._hovered else 0
+	check(nv[1]._hovered and hovered_count == 1, "after a rebuild only the card under the pointer is hovered")
+	check(nv[1].hotkey == 2 and nv[1].preview == node._damage_preview(c2.piles.hand[1]).strip_edges(), "restoring hover keeps the hotkey badge and damage preview")
+	node._restore_hover(Vector2(-500.0, -500.0))
+	hovered_count = 0
+	for v in nv:
+		hovered_count += 1 if v._hovered else 0
+	check(hovered_count == 0, "no card stays hovered when the pointer is elsewhere")
+	node._restore_hover(nv[0].get_global_rect().get_center())
+	check(nv[0]._hovered and not nv[1]._hovered, "hover moves to the card now under the pointer")
 	c2.phase = Combat.Phase.ENEMY_TURN
 	var h := c2.piles.hand.size()
 	key(node, KEY_1)

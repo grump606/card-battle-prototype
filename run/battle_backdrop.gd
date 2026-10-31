@@ -18,13 +18,18 @@ const WINDOW_COUNT := 8
 const LAMP_COUNT := 6
 const MOTE_COUNT := 44
 const NOISE_SIZE := 64
-## Very subtle per-class tint, mixed into the lines and glow only (neutral for anything else).
+## Per-class tint, mixed into the lines, glass, glow and dust only (neutral for anything else).
 const TINTS := {
 	&"deserter": Color(0.70, 0.34, 0.14),
 	&"pickpocket": Color(0.12, 0.60, 0.58),
 	&"medium": Color(0.52, 0.30, 0.78),
 }
-const TINT_AMOUNT := 0.14
+const TINT_AMOUNT := 0.32
+## The boss fight keeps its red mood: the class tint is scaled down there.
+const BOSS_TINT_SCALE := 0.5
+## How much of the class colour the window glass takes, and the strength of the class glow at the far end.
+const GLASS_TINT := 0.45
+const ACCENT_GLOW := 0.07
 
 ## Seconds of animation so far; only advance() moves it.
 var time := 0.0
@@ -110,7 +115,14 @@ func tint() -> Color:
 
 
 func _mix(base: Color) -> Color:
-	return base.lerp(tint(), TINT_AMOUNT) if TINTS.has(character_id) else base
+	return base.lerp(tint(), tint_amount()) if TINTS.has(character_id) else base
+
+
+## How strongly the class colour is mixed in: 0 for a neutral scene, less in the boss fight.
+func tint_amount() -> float:
+	if not TINTS.has(character_id):
+		return 0.0
+	return TINT_AMOUNT * (BOSS_TINT_SCALE if boss else 1.0)
 
 
 func _draw() -> void:
@@ -156,6 +168,11 @@ func _draw_end(o: Vector2, vp: Vector2, far: Vector2) -> void:
 	for i in 7:
 		draw_circle(o + vp, far.y * (1.0 + i * 0.6), Color(pale, glow * 0.25 * breathe))
 	draw_line(o + vp + Vector2(0, -far.y), o + vp + Vector2(0, far.y), Color(pale, glow * 3.0 * breathe), 1.5)
+	# A class-coloured wash around the doorway, so each class has its own light down the corridor.
+	if TINTS.has(character_id):
+		var accent := tint() if not boss else _mix(RED)
+		for i in 5:
+			draw_circle(o + vp, far.y * (1.4 + i * 1.5), Color(accent, ACCENT_GLOW * (tint_amount() / TINT_AMOUNT) * breathe * 0.5))
 
 
 func _draw_rails(o: Vector2, vp: Vector2, far: Vector2, w: float, h: float) -> void:
@@ -187,6 +204,8 @@ func _draw_ribs(o: Vector2, vp: Vector2, far: Vector2, w: float, h: float) -> vo
 func _draw_windows(o: Vector2, vp: Vector2, far: Vector2, w: float, h: float) -> void:
 	# Windows on both walls, sliding past; the world outside is a dark blue with distant lights.
 	var pale := _mix(PALE)
+	var glass := Color(0.10, 0.14, 0.22).lerp(tint(), GLASS_TINT * (tint_amount() / TINT_AMOUNT))
+	var light := tint().lerp(Color.WHITE, 0.25) if TINTS.has(character_id) and not boss else lamp_color()
 	for k in WINDOW_COUNT:
 		var p := fposmod(float(k) / WINDOW_COUNT + time * speed(), 1.0)
 		var p2 := minf(p + 0.05, 1.0)
@@ -197,13 +216,13 @@ func _draw_windows(o: Vector2, vp: Vector2, far: Vector2, w: float, h: float) ->
 			var b := _wall(vp, far, w, h, side, p2 * p2, 0.22)
 			var c := _wall(vp, far, w, h, side, p2 * p2, 0.62)
 			var d := _wall(vp, far, w, h, side, p * p, 0.62)
-			draw_colored_polygon(PackedVector2Array([o + a, o + b, o + c, o + d]), Color(0.10, 0.14, 0.22, 0.55 * fade))
+			draw_colored_polygon(PackedVector2Array([o + a, o + b, o + c, o + d]), Color(glass, 0.55 * fade))
 			# A light in the dark outside, now and then, slides across the glass faster than the frame.
 			var lit := smoothstep(0.55, 0.9, n)
 			if lit > 0.0:
 				var q := p + 0.05 * fposmod(n * 7.0 + time * 0.4, 1.0)
 				var m := _wall(vp, far, w, h, side, q * q, 0.34 + 0.1 * n)
-				draw_circle(o + m, 1.0 + 4.0 * q * q, Color(lamp_color(), 0.5 * lit * fade))
+				draw_circle(o + m, 1.0 + 4.0 * q * q, Color(light, 0.5 * lit * fade))
 			draw_polyline(PackedVector2Array([o + a, o + b, o + c, o + d, o + a]), Color(pale, 0.10 * fade), 1.0)
 
 

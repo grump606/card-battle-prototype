@@ -163,6 +163,8 @@ func _rebuild_hand() -> void:
 			view.set_state(CardView.State.UNPLAYABLE, _unplayable_note(card))
 		view.pressed.connect(_play_hand_card.bind(i))
 		_hand_box.add_child(view)
+	# The new views start un-hovered; once laid out, light the one under the pointer.
+	_restore_hover.call_deferred()
 
 
 ## Why a hand card cannot be played right now, as a short warning for the card ("" when the
@@ -352,3 +354,20 @@ func _on_enemy_acted(enemy: EnemyUnit, intent: CardEffect) -> void:
 	var index := _combat.enemies.find(enemy)
 	if intent.is_damage() and index >= 0 and index < _enemy_views.size():
 		_enemy_views[index].play_attack()
+
+
+## Re-applies the hover look to the hand card under the pointer after a rebuild (the new views
+## get no mouse_entered until the mouse moves). Every other card is cleared, so none sticks.
+func _restore_hover(mouse := Vector2(-1.0, -1.0)) -> void:
+	if not is_inside_tree():
+		return
+	if mouse == Vector2(-1.0, -1.0):
+		mouse = get_viewport().get_mouse_position()
+	var found := false
+	for child in _hand_box.get_children():
+		var view := child as CardView
+		if view == null:
+			continue
+		var over := not found and view.get_global_rect().has_point(mouse)
+		found = found or over
+		view.set_hovered(over)

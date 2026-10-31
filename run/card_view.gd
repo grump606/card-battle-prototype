@@ -218,6 +218,11 @@ func _gui_input(event: InputEvent) -> void:
 		pressed.emit()
 
 
+## Sets the hover look directly (the owner uses this to restore it after rebuilding a view under the pointer).
+func set_hovered(inside: bool) -> void:
+	_on_hover(inside)
+
+
 func _on_hover(inside: bool) -> void:
 	if auto_hover:
 		_hovered = inside
