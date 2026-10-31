@@ -4,11 +4,13 @@
 # per-step timeout (both used to prove the failure paths).
 # Every step has a timeout: a script error or an infinite loop would otherwise hang
 # headless Godot forever instead of failing the check.
+param([string]$Godot)
+# Engine lookup order: -Godot parameter, $env:GODOT_EXE (used by CI), $env:GODOT, local path.
 $root = Split-Path -Parent $PSScriptRoot
 $local = Join-Path $root 'Godot_v4.7.2-stable_win64.exe\Godot_v4.7.2-stable_win64_console.exe'
-$godot = if ($env:GODOT) { $env:GODOT } else { $local }
+$godot = if ($Godot) { $Godot } elseif ($env:GODOT_EXE) { $env:GODOT_EXE } elseif ($env:GODOT) { $env:GODOT } else { $local }
 if (-not (Test-Path -LiteralPath $godot -PathType Leaf)) {
-    Write-Host "CHECK FAILED: Godot not found at '$godot'. Set the GODOT env var to the Godot 4.7 console executable, or place it at '$local'."
+    Write-Host "CHECK FAILED: Godot not found at '$godot'. Pass -Godot, or set GODOT_EXE (or GODOT) to the Godot 4.7 console executable, or place it at '$local'."
     exit 2
 }
 $testScript = if ($env:CHECK_TESTS_SCRIPT) { $env:CHECK_TESTS_SCRIPT } else { 'res://tests/run_tests.gd' }
