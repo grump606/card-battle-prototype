@@ -42,3 +42,7 @@ Name, `HP n/max`, `Block n` (dimmed at 0), intent text, the target marker, and t
 ## Animation
 
 `advance(delta)` (called from `_process` only while visible in the tree) drives breathing, glow flicker (fixed-seed noise, no global RNG), embers, the flash, the lunge and the defeated fade. Each view has a `phase` so same-type enemies do not breathe in step.
+
+## The Brakeman (mid-boss)
+
+Key `brakeman` (name "The Brakeman"), listed in `EnemyView.BOSS_KEYS` with the Conductor, so it gets the 300x164 boss panel, the diamond studs and the second inner line. Its palette `midboss` swaps the Conductor's silver and crimson for a brass frame `(.78,.56,.24)`, soot-black oxblood fill and an orange-brass accent, so the two bosses read differently at a glance. Silhouette: broad hulking torso with a brass-buckled leather apron, huge pauldrons, a small helmet with a glowing visor slit, a spoked brass brake wheel raised in one gauntlet (it turns slowly) and a signal lantern swinging from the other, steam venting at the shoulders; dead signal posts stand faintly behind it where the Conductor has passenger ghosts. Status chips keep the beside-the-portrait layout (same subject width as the Conductor). `tools/enemy_sheet.gd` includes it in the contact, states and chips sheets and takes `battle_midboss.png`.

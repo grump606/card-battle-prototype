@@ -128,6 +128,22 @@ func _initialize() -> void:
 	await process_frame
 	_check(scene._run != null and scene._run.character.id == &"deserter" and scene._run.stop_index == 0, "picking the Deserter starts a Deserter run")
 	var run_state: RunState = scene._run
+	# What the line holds, so the totals below follow its length instead of a fixed number.
+	var line := {"fights": 0, "vendors": 0, "rests": 0, "stories": 0, "mid_bosses": 0}
+	for stop in run_state.stops:
+		match stop.type:
+			RunState.StopType.COMBAT:
+				line.fights += 1
+				line.mid_bosses += 1 if stop.mid_boss else 0
+			RunState.StopType.VENDOR:
+				line.vendors += 1
+			RunState.StopType.REST:
+				line.rests += 1
+			_:
+				line.stories += 1
+	_check(line.fights >= 9 and line.mid_bosses == 1 and run_state.stops.size() >= 20, "the line has a mid-boss and at least eight regular fights (%d fights, %d stops)" % [line.fights, run_state.stops.size()])
+	var mid_boss_fought := false
+	var mid_boss_continued := false
 
 	var fights_ended := 0
 	var rewards := 0
@@ -154,9 +170,23 @@ func _initialize() -> void:
 			if combat == null:
 				continue
 			if combat.turn == 1 and combat.phase == Combat.Phase.PLAYER_TURN:
+				var fight_stop := run_state.current_stop()
+				if fight_stop.mid_boss:
+					mid_boss_fought = true
+					_check(combat.enemies.size() == 1 and combat.enemies[0].display_name == "The Brakeman", "the mid-boss stop fights The Brakeman alone")
+					_check(battle.boss_fight and battle._backdrop.boss and header.text.contains("Mid-boss"), "the mid-boss fight has the boss backdrop and says Mid-boss in the header")
+				elif fight_stop.boss:
+					_check(battle.boss_fight and battle._backdrop.boss and header.text.contains("Boss") and not header.text.contains("Mid-boss"), "the final boss fight has the boss backdrop and says Boss in the header")
+				else:
+					_check(not battle.boss_fight and not battle._backdrop.boss, "a regular fight has the normal backdrop")
 				for enemy in combat.enemies:
 					enemy.hp = 1
 			if combat.phase == Combat.Phase.PLAYER_TURN:
+				# The longer line has tougher fights and the run seed is random: keep the player alive so the
+				# run always reaches the end (what is tested here is the hand-offs, not the difficulty).
+				combat.player.hp = combat.player.max_hp + 500 # trimmed back when the fight ends
+				for enemy in combat.enemies:
+					enemy.hp = mini(enemy.hp, 1)
 				var played := false
 				for i in combat.piles.hand.size():
 					if combat.can_play(i):
@@ -167,13 +197,20 @@ func _initialize() -> void:
 					battle._on_end_turn_pressed()
 			elif combat.phase == Combat.Phase.ENDED:
 				fights_ended += 1
+				combat.player.hp = mini(combat.player.hp, combat.player.max_hp)
 				var continue_button: Button = battle._new_fight_button
 				_check(continue_button.visible and continue_button.text == "Continue", "a finished embedded fight shows Continue")
 				_check(battle._result_label.text != "", "a finished fight shows its result")
 				var stop_before := run_state.stop_index
+				var was_mid_boss := run_state.current_stop().mid_boss
 				continue_button.pressed.emit()
 				await process_frame
-				_check(scene._run.reward_pending() or scene._run.stop_index > stop_before, "Continue hands the result to the run")
+				_check(scene._run.reward_pending() or scene._run.stop_index > stop_before or scene._run.finished, "Continue hands the result to the run")
+				if was_mid_boss:
+					# Unlike the final boss, the mid-boss pays out and the run goes on.
+					mid_boss_continued = true
+					_check(scene._run.reward_pending() and not scene._run.finished and scene._run.stop_index == stop_before, "beating the mid-boss goes to the reward screen and the run is not finished")
+					_check(header.text.contains("Reward") and not CardView.find_all(body).is_empty() and CardView.find_all(body).size() == scene._run.reward_choices().size(), "the reward screen after the mid-boss offers cards")
 			continue
 		var stop_type: int = run_state.current_stop().type
 		if run_state.reward_pending():
@@ -232,12 +269,13 @@ func _initialize() -> void:
 	_check(guard < 4000 and stuck <= 400, "the run never got stuck at one stop")
 	_check(run_state.finished and run_state.escaped, "the run finished with an escape")
 	_check(run_state.stop_index == run_state.stops.size(), "every stop was passed")
-	_check(fights_ended == 5 and rewards == 4, "five fights ended and four rewards were resolved, the boss giving none (%d, %d)" % [fights_ended, rewards])
-	_check(vendor_visits == 2 and rests == 2 and stories == 3, "two vendors, two rests and three story stops were visited (%d, %d, %d)" % [vendor_visits, rests, stories])
+	_check(fights_ended == line.fights and rewards == line.fights - 1, "every fight ended and every reward but the final boss's was resolved (%d fights, %d rewards, line has %d)" % [fights_ended, rewards, line.fights])
+	_check(mid_boss_fought and mid_boss_continued, "the mid-boss stop was reached, fought and followed by the reward screen")
+	_check(vendor_visits == line.vendors and rests == line.rests and stories == line.stories, "every vendor, rest and story stop was visited (%d, %d, %d of %d, %d, %d)" % [vendor_visits, rests, stories, line.vendors, line.rests, line.stories])
 	_check(_find(body, "New Run") != null, "the end card offers New Run")
 	_check(not FileAccess.file_exists(test_save), "the save is deleted when the run ends")
 	var win_text := _all_text(body)
-	_check(win_text.contains("Outcome: Escaped") and win_text.contains("Stops cleared: 12/12"), "the win summary shows outcome and stops cleared")
+	_check(win_text.contains("Outcome: Escaped") and win_text.contains("Stops cleared: %d/%d" % [run_state.stops.size(), run_state.stops.size()]), "the win summary shows outcome and stops cleared")
 	_check(win_text.contains("Final HP: %d/%d" % [run_state.player.hp, run_state.player.max_hp]), "the win summary shows final HP")
 	_check(win_text.contains("Deck: %d cards" % run_state.deck.size()) and win_text.contains("Gold: %d" % run_state.gold), "the win summary shows deck size and gold")
 	_find(body, "New Run").pressed.emit()
@@ -267,7 +305,7 @@ func _initialize() -> void:
 	scene._show_stop()
 	await process_frame
 	var loss_text := _all_text(body)
-	_check(loss_text.contains("Outcome: Defeated") and loss_text.contains("Stops cleared: 1/12") and loss_text.contains("Final HP: 0/%d" % lost.player.max_hp) and loss_text.contains("Gold: 21"), "the loss summary shows the right data")
+	_check(loss_text.contains("Outcome: Defeated") and loss_text.contains("Stops cleared: 1/%d" % lost.stops.size()) and loss_text.contains("Final HP: 0/%d" % lost.player.max_hp) and loss_text.contains("Gold: 21"), "the loss summary shows the right data")
 	_check(not FileAccess.file_exists(test_save), "the save is deleted after a defeat")
 	scene.queue_free()
 	await process_frame
@@ -438,7 +476,7 @@ func _initialize() -> void:
 	_find(alt_body, "Heal").pressed.emit()
 	await process_frame
 	_check(alt.player.hp == hp_before_heal + RunState.REWARD_HEAL and alt.reward_heal_used and not alt.reward_pending(), "Heal restores HP and resolves the reward")
-	alt.stop_index = 5  # a combat stop; a reward again
+	alt.stop_index = 4  # a combat stop; a reward again
 	alt.complete_combat(true)
 	pause_scene._show_stop()
 	await process_frame

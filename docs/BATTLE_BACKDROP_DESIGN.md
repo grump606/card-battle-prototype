@@ -38,3 +38,7 @@ All motion derives from one accumulator `time`; depth `s = p*p` so things quicke
 About 150 `draw_*` calls a frame (rects, lines, small polygons and circles; no textures, no shaders), redrawn only from `advance()`, which does nothing unless the node is visible in the tree. The paused tree (pause overlay) stops `_process` too. The local `RandomNumberGenerator` has a fixed seed, so layout is identical every run and the run RNG is untouched.
 
 `tests/ui_battle_backdrop_test.gd` (in `scripts/check.ps1`) covers variants, determinism, hidden/detached freeze, mouse ignore and the battle screen having one backdrop as lowest, full-screen child. `tools/backdrop_sheet.gd` takes the screenshots (not headless).
+
+## Mid-boss
+
+The mid-boss fight (The Brakeman) uses the same boss variant as the Conductor: `run.gd` sets `boss_fight` for a stop that is `boss` or `mid_boss`. The battle also writes a `Mid-boss fight` (or `Boss fight`) line at the top of its log (`battle.boss_label`), and the run header already reads `Stop n/N: Mid-boss`. Only the final boss ends the run; the mid-boss leads to the normal reward screen and the line goes on.

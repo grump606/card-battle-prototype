@@ -216,7 +216,10 @@ func _show_combat() -> void:
 		return
 	var battle := BATTLE_SCENE.instantiate()
 	battle.external_combat = combat
-	battle.boss_fight = _run.current_stop().boss
+	# The mid-boss and the final boss both get the boss look; only the final one ends the run.
+	var stop := _run.current_stop()
+	battle.boss_fight = stop.boss or stop.mid_boss
+	battle.boss_label = "Mid-boss" if stop.mid_boss else "Boss"
 	battle.character_id = _run.character.id if _run.character != null else &""
 	battle.relics = _run.relics
 	battle.fight_finished.connect(_on_fight_finished)
@@ -233,7 +236,8 @@ func _show_reward() -> void:
 		var picker := _panel("Pick a card to remove from your deck.")
 		_show_remove_picker(picker, _reward_remove_card, _cancel_reward_removing)
 		return
-	var box := _panel("Victory. Take a card for your deck, or skip.")
+	var beat_mid_boss := _run.current_stop().mid_boss
+	var box := _panel("The mid-boss falls. The line runs on. Take a card for your deck, or skip." if beat_mid_boss else "Victory. Take a card for your deck, or skip.")
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 16)

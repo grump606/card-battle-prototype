@@ -6,7 +6,7 @@ extends SceneTree
 ## Default output is user://enemy_sheets. The battle shots use the project's 1152x648 window.
 
 const GAP := 12
-const SHEET_SIZE := Vector2i(1180, 700)
+const SHEET_SIZE := Vector2i(1180, 780)
 
 var out_dir := "user://enemy_sheets"
 
@@ -65,7 +65,7 @@ func _all_enemies_sheet() -> Control:
 func _states_sheet() -> Control:
 	var root_box := VBoxContainer.new()
 	root_box.add_theme_constant_override("separation", 6)
-	for path in ["res://data/enemies/cinder_hound.tres", "res://data/enemies/the_conductor.tres"]:
+	for path in ["res://data/enemies/cinder_hound.tres", "res://data/enemies/the_conductor.tres", "res://data/enemies/the_brakeman.tres"]:
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", GAP)
 		row.add_child(_view(_unit(path), 0.5))
@@ -93,7 +93,7 @@ func _states_sheet() -> Control:
 func _chips_sheet() -> Control:
 	var root_box := VBoxContainer.new()
 	root_box.add_theme_constant_override("separation", 6)
-	for path in ["res://data/enemies/cinder_hound.tres", "res://data/enemies/pale_whisperer.tres", "res://data/enemies/the_conductor.tres"]:
+	for path in ["res://data/enemies/cinder_hound.tres", "res://data/enemies/pale_whisperer.tres", "res://data/enemies/the_conductor.tres", "res://data/enemies/the_brakeman.tres"]:
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", GAP)
 		for count in [0, 2, 4]:
@@ -146,6 +146,7 @@ func _battle_shots() -> void:
 		"battle_3.png": ["res://data/enemies/skittering_wisp.tres", "res://data/enemies/hollow_colossus.tres", "res://data/enemies/lost_shade.tres"],
 		"battle_warden_pair.png": ["res://data/enemies/gate_warden.tres", "res://data/enemies/lost_shade.tres"],
 		"battle_boss.png": ["res://data/enemies/the_conductor.tres"],
+		"battle_midboss.png": ["res://data/enemies/the_brakeman.tres"],
 	}
 	for file in shots:
 		var datas: Array[EnemyData] = []

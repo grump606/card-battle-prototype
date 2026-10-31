@@ -35,6 +35,8 @@ signal fight_finished(victory: bool)
 var external_combat: Combat = null
 ## Also set before adding to the tree: picks the backdrop look (the Conductor fight, the class tint).
 var boss_fight := false
+## Shown as the first log line of a boss fight ("Boss" or "Mid-boss"); both use the boss backdrop.
+var boss_label := "Boss"
 var character_id: StringName = &""
 ## The run's relics, shown as badges beside the player's HP (the strip hides when there are none).
 var relics: Array[RelicData] = []
@@ -88,6 +90,8 @@ func _attach(combat: Combat) -> void:
 	_target_index = 0
 	_result_label.text = ""
 	_log_label.clear()
+	if boss_fight:
+		_log_label.append_text("[b]%s fight[/b]\n" % boss_label)
 	_new_fight_button.hide()
 	_combat.start()
 

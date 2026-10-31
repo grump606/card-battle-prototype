@@ -27,15 +27,24 @@ const PALETTES := {
 		"banner_ink": Color(1.0, 0.95, 0.90), "ink": Color(0.96, 0.93, 0.92), "window": Color(0.05, 0.04, 0.07),
 		"accent": Color(0.90, 0.20, 0.25),
 	},
+	## The mid-boss: soot-black oxblood with a brass frame instead of the Conductor's silver.
+	&"midboss": {
+		"frame": Color(0.78, 0.56, 0.24), "fill": Color(0.11, 0.06, 0.06), "banner": Color(0.38, 0.09, 0.07),
+		"banner_ink": Color(1.0, 0.94, 0.84), "ink": Color(0.96, 0.92, 0.88), "window": Color(0.06, 0.04, 0.04),
+		"accent": Color(0.92, 0.50, 0.18),
+	},
 }
 const HP_BACK := Color(0.12, 0.05, 0.06)
 ## Enemy name -> silhouette. Any other name draws the generic ghost.
 const ART_KEYS := {
 	"Gate Warden": &"warden", "Lost Shade": &"shade", "Skittering Wisp": &"wisp", "Hollow Colossus": &"colossus",
 	"Pale Whisperer": &"whisperer", "Cinder Hound": &"hound", "Mourning Crow": &"crow", "The Conductor": &"conductor",
+	"The Brakeman": &"brakeman",
 }
+## Silhouettes that get the wide boss panel and a grander frame (each with its own palette).
+const BOSS_KEYS: Array[StringName] = [&"conductor", &"brakeman"]
 ## Scale that keeps the tallest silhouettes inside the portrait window.
-const PORTRAIT_FIT := {&"conductor": 0.88, &"colossus": 0.92, &"whisperer": 0.88, &"warden": 0.95, &"hound": 1.25, &"crow": 1.05, &"shade": 1.08, &"wisp": 1.05}
+const PORTRAIT_FIT := {&"brakeman": 0.78, &"conductor": 0.88, &"colossus": 0.92, &"whisperer": 0.88, &"warden": 0.95, &"hound": 1.25, &"crow": 1.05, &"shade": 1.08, &"wisp": 1.05}
 ## Silhouette colour and the glow of eyes, embers and flames.
 const ART_COLORS := {
 	&"warden": [Color(0.34, 0.33, 0.37), Color(1.0, 0.72, 0.30)],
@@ -46,6 +55,7 @@ const ART_COLORS := {
 	&"hound": [Color(0.22, 0.17, 0.17), Color(1.0, 0.45, 0.15)],
 	&"crow": [Color(0.17, 0.17, 0.24), Color(0.98, 0.86, 0.40)],
 	&"conductor": [Color(0.24, 0.13, 0.19), Color(0.95, 0.30, 0.30)],
+	&"brakeman": [Color(0.34, 0.15, 0.13), Color(1.0, 0.62, 0.22)],
 	&"ghost": [Color(0.58, 0.60, 0.68), Color(0.85, 0.90, 1.0)],
 }
 
@@ -101,7 +111,7 @@ func _process(delta: float) -> void:
 func set_enemy(new_unit: EnemyUnit) -> void:
 	unit = new_unit
 	art_key = art_key_for(new_unit.display_name if new_unit != null else "")
-	is_boss = art_key == &"conductor"
+	is_boss = BOSS_KEYS.has(art_key)
 	custom_minimum_size = BOSS_BASE if is_boss else BASE
 	size = custom_minimum_size
 	_last_hp = new_unit.hp if new_unit != null else 0
@@ -222,7 +232,7 @@ func _on_hover(inside: bool) -> void:
 func _draw() -> void:
 	if unit == null:
 		return
-	var p: Dictionary = PALETTES[&"boss" if is_boss else &""].duplicate()
+	var p: Dictionary = PALETTES[(&"midboss" if art_key == &"brakeman" else &"boss") if is_boss else &""].duplicate()
 	var dead := unit.is_dead()
 	var w := BOSS_BASE.x if is_boss else BASE.x
 	var frame: Color = p.frame
@@ -325,9 +335,13 @@ func _draw_window(win: Rect2, p: Dictionary, dead: bool) -> void:
 	draw_line(Vector2(win.position.x + 2, ground + 2), Vector2(win.end.x - 2, ground + 2), Color(accent, 0.25), 1.0)
 	draw_line(Vector2(win.position.x + 2, ground + 5), Vector2(win.end.x - 2, ground + 5), Color(accent, 0.25), 1.0)
 	if is_boss:
-		# Passengers that never got off, faint behind the Conductor.
+		# Passengers that never got off, faint behind the Conductor; dead signal posts behind the Brakeman.
 		for side in [-1.0, 1.0]:
-			_ghost_shape(Vector2(cx + side * 100.0, ground), 0.65, Color(0.6, 0.65, 0.8, 0.16), 0.0)
+			if art_key == &"brakeman":
+				draw_line(Vector2(cx + side * 100.0, ground), Vector2(cx + side * 100.0, ground - 50.0), Color(accent, 0.18), 3.0)
+				draw_circle(Vector2(cx + side * 100.0, ground - 52.0), 4.0, Color(accent, 0.22))
+			else:
+				_ghost_shape(Vector2(cx + side * 100.0, ground), 0.65, Color(0.6, 0.65, 0.8, 0.16), 0.0)
 	var lunge := sin(_lunge * PI)
 	var shake := Vector2(sin(time * 70.0) * 2.5 * _flash, 0.0)
 	var squash := 1.0 + breath() * 0.025
@@ -558,6 +572,8 @@ func _draw_portrait(key: StringName) -> void:
 			_art_crow(body, glow)
 		&"conductor":
 			_art_conductor(body, glow)
+		&"brakeman":
+			_art_brakeman(body, glow)
 		_:
 			_ghost_shape(Vector2(0, 0), 1.0, Color(body, 0.85), phase)
 			_eye(Vector2(-5, -40), 2.0, glow)
@@ -751,3 +767,54 @@ func _art_conductor(body: Color, glow: Color) -> void:
 		draw_circle(Vector2(side * 2.6, -55), 1.8, Color(0.05, 0.02, 0.04))
 		_eye(Vector2(side * 2.6, -55), 0.9, glow)
 	draw_line(Vector2(-2.5, -50), Vector2(2.5, -50), Color(0.1, 0.05, 0.08), 1.2)
+
+
+## The mid-boss: a hulking brakeman in a sooty apron, a spoked brake wheel raised in one gauntlet and
+## a swinging signal lantern in the other, steam venting from his shoulders.
+func _art_brakeman(body: Color, glow: Color) -> void:
+	var g := glow_level()
+	var brass := Color(0.82, 0.60, 0.26)
+	var dark := body.darkened(0.45)
+	var sway := sin(time * 1.6 + phase)
+	# Steam venting from the shoulders.
+	for side in [-1.0, 1.0]:
+		for i in 2:
+			var t := fposmod(time * 0.5 + i * 0.5 + phase, 1.0)
+			draw_circle(Vector2(side * 21 + sway * 3.0 * t, -58 - t * 12.0), 2.0 + t * 3.0, Color(0.8, 0.8, 0.85, 0.28 * (1.0 - t)))
+	# Thick legs and heavy boots.
+	_poly([Vector2(-17, 0), Vector2(-15, -22), Vector2(-3, -22), Vector2(-3, 0)], dark)
+	_poly([Vector2(3, 0), Vector2(3, -22), Vector2(15, -22), Vector2(17, 0)], dark)
+	draw_rect(Rect2(-19, -4, 17, 4), dark.darkened(0.3))
+	draw_rect(Rect2(2, -4, 17, 4), dark.darkened(0.3))
+	# The lantern arm: a hanging gauntlet and a signal lantern swinging below it.
+	_poly([Vector2(-26, -50), Vector2(-33, -44), Vector2(-35, -30), Vector2(-28, -30), Vector2(-24, -42)], body.darkened(0.1))
+	var hook := Vector2(-31, -26)
+	var lamp := hook + Vector2(sway * 5.0, 14)
+	draw_line(hook, lamp + Vector2(0, -5), Color(brass, 0.9), 1.2)
+	draw_circle(lamp, 11.0, Color(glow, 0.14 * g))
+	_poly([lamp + Vector2(-4, -4), lamp + Vector2(4, -4), lamp + Vector2(5, 6), lamp + Vector2(-5, 6)], brass.darkened(0.2))
+	draw_rect(Rect2(lamp + Vector2(-2.5, -2), Vector2(5, 6)), Color(glow, g))
+	_ball(Vector2(-31, -27), 5.5, body.lightened(0.12))
+	# Broad torso with a brass-buckled leather apron and big pauldrons.
+	_poly([Vector2(-23, -22), Vector2(-29, -44), Vector2(-19, -57), Vector2(19, -57), Vector2(29, -44), Vector2(23, -22)], body)
+	_poly([Vector2(-12, -52), Vector2(12, -52), Vector2(14, -22), Vector2(-14, -22)], dark)
+	draw_rect(Rect2(-14, -28, 28, 3.5), brass)
+	draw_rect(Rect2(-3, -29, 6, 5.5), brass.lightened(0.2))
+	for x in [-8.0, 0.0, 8.0]:
+		draw_line(Vector2(x, -50), Vector2(x, -32), Color(0, 0, 0, 0.35), 1.2)
+	_ball(Vector2(-25, -54), 7.0, body.lightened(0.1))
+	_ball(Vector2(25, -54), 7.0, body.lightened(0.1))
+	# Small helmeted head with a glowing visor slit and a brass rim.
+	_poly([Vector2(-8, -58), Vector2(-9, -68), Vector2(0, -73), Vector2(9, -68), Vector2(8, -58)], body.lightened(0.05))
+	draw_rect(Rect2(-9, -65, 18, 2.0), brass)
+	draw_rect(Rect2(-5.5, -62, 11, 2.5), Color(glow, g))
+	# The raised arm and the brake wheel: a rim, rotating spokes and a hub in the gauntlet.
+	_poly([Vector2(22, -56), Vector2(31, -52), Vector2(38, -44), Vector2(32, -41), Vector2(25, -47)], body.darkened(0.1))
+	var hub := Vector2(40, -40)
+	var spin := time * 0.5 + phase
+	for k in 6:
+		draw_line(hub, hub + Vector2.from_angle(spin + k * TAU / 6.0) * 13.0, Color(brass, 0.9), 2.0)
+	draw_arc(hub, 13.0, 0, TAU, 28, brass, 3.0, true)
+	draw_arc(hub, 13.0, 0, TAU, 28, Color(0, 0, 0, 0.5), 0.8, true)
+	_ball(hub, 5.5, body.lightened(0.15))
+	draw_circle(hub, 1.6, Color(glow, g))
