@@ -1,6 +1,6 @@
 # Next steps
 
-Last updated after the thorns fix. Everything below is on `main` and pushed (`fdc4c0b`) unless noted. The v0.2.0 release predates the longer run.
+Last updated after the v0.3.0 release. Everything below is on `main` and pushed (`b6091e3`) unless noted.
 
 ## State
 
@@ -10,7 +10,7 @@ Last updated after the thorns fix. Everything below is on `main` and pushed (`fd
 - Artwork is all code-drawn (no image assets): cards with class palettes and damage icon variants, character select panels, enemy portraits with status chips beside the figure, battle backdrop, vendor stall, pause scene, and rest stop, story and end-card scenes. Design notes are in `docs/*_ART_DESIGN.md` and `docs/SCREEN_ART_DESIGN.md`.
 - The damage preview on cards matches the damage actually dealt (shared `CardEffect.raw_damage`).
 - Relics: 12 relics (3 per class, 3 neutral) sold one per vendor visit, so at most three per run (three vendors). Combat hooks, vendor stock, save support and code-drawn badges with a strip on the battle and run screens are in. Design: `docs/RELICS_DESIGN.md`, `docs/RELIC_ART_DESIGN.md`.
-- Windows installer: `scripts/build_installer.ps1` builds `build/CardBattlePrototype-Setup-<version>.exe` (Inno Setup, upgrades in place, refuses downgrades). Its GitHub update check only works once the repo is public. Details: `docs/INSTALLER.md`. v0.2.0 (relics, the select screen's Back button, the installer) is published as a GitHub release with the setup exe attached; the repo is private, so only people with repo access can download it. To ship a new version: bump `config/version`, run the build script, and `gh release create v<version> build/CardBattlePrototype-Setup-<version>.exe`.
+- Windows installer: `scripts/build_installer.ps1` builds `build/CardBattlePrototype-Setup-<version>.exe` (Inno Setup, upgrades in place, refuses downgrades). Its GitHub update check only works once the repo is public. Details: `docs/INSTALLER.md`. The latest release is v0.3.0 (the longer run, the Brakeman, the thorns fix; earlier: v0.2.0 with relics, the select screen's Back button and the installer), published as a GitHub release with the setup exe attached; the repo is private, so only people with repo access can download it. Saves from before the longer run are rejected. To ship a new version: bump `config/version`, run the build script, and `gh release create v<version> build/CardBattlePrototype-Setup-<version>.exe`.
 - The character select screen has a Back button when it is reached from the Continue prompt or the end card (none on a first launch with no save).
 - The run is 21 stops: 8 regular fights, the Brakeman as a mid-boss at stop 9 (pays gold plus 15, offers a card, the run continues), the Conductor last, 3 vendors, 4 rests and story beats 0 to 3 (the "empty platform" beat now shows after the mid-boss). Regular fights ramp 1.2% HP and damage per fight number, so later fights are tougher. Old 12-stop saves are rejected cleanly. Design and results: `docs/LEVELS_DESIGN.md`.
 - To make the longer line reachable the agent also changed `REST_HEAL` 24 to 36, Deserter max HP 47 to 52, Medium 41 to 56 and Conductor HP 108 to 96.
