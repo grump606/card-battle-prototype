@@ -125,6 +125,38 @@ func _initialize() -> void:
 	check(texts == ["Exposed 2", "Haunt 3", "Hold 4", "Thorns 5"], "chips show Exposed, Haunt, Hold and Thorns with their numbers: %s" % str(texts))
 	check(EnemyView.find_all(holder).size() >= 8, "find_all finds the views")
 
+	# Chip layout: with 0 to 4 statuses, on every enemy, chips stay inside the panel and the portrait
+	# window and never touch the portrait's subject area (the middle of the window).
+	for path in all_paths:
+		var lay_unit := _unit(path)
+		var lay := EnemyView.new()
+		holder.add_child(lay)
+		lay.set_enemy(lay_unit)
+		var name_ := lay_unit.display_name
+		var panel := Rect2(0, EnemyView.MARKER, lay.custom_minimum_size.x, EnemyView.BASE.y - EnemyView.MARKER)
+		var subject := lay.portrait_subject_rect()
+		check(lay.window_rect().encloses(subject) and subject.size.x >= 100.0, "%s: the portrait subject area is inside its window" % name_)
+		for count in 5:
+			lay_unit.hold = 0
+			lay_unit.thorns = 0
+			lay_unit.clear_statuses()
+			if count >= 1:
+				lay_unit.apply_status(Combatant.Status.EXPOSED, 2)
+			if count >= 2:
+				lay_unit.apply_status(Combatant.Status.HAUNTED, 3)
+			if count >= 3:
+				lay_unit.hold = 4
+			if count >= 4:
+				lay_unit.thorns = 12
+			var rects := lay.chip_rects()
+			var ok := rects.size() == count and lay.status_chips().size() == count
+			for i in rects.size():
+				ok = ok and not rects[i].intersects(subject) and panel.encloses(rects[i]) and lay.window_rect().encloses(rects[i])
+				for j in i:
+					ok = ok and not rects[i].intersects(rects[j])
+			check(ok, "%s with %d status(es): chips clear of the portrait, inside the panel, not overlapping" % [name_, count])
+		lay.queue_free()
+
 	# In the battle screen: the target marker follows the target, the dead are skipped, clicks select.
 	var trio: Array[String] = ["res://data/enemies/skittering_wisp.tres", "res://data/enemies/pale_whisperer.tres", "res://data/enemies/mourning_crow.tres"]
 	var battle := _battle(trio)

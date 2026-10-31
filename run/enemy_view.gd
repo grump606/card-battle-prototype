@@ -186,21 +186,21 @@ static func find_all(node: Node) -> Array[EnemyView]:
 	return out
 
 
-## The statuses shown as chips, in display order: {kind, text, color}. Hold and Thorns count too.
+## The statuses shown as chips, in display order: {kind, value, text, color}. Hold and Thorns count too.
 func status_chips() -> Array[Dictionary]:
 	var chips: Array[Dictionary] = []
 	if unit == null:
 		return chips
 	var exposed := unit.status_turns(Combatant.Status.EXPOSED)
 	if exposed > 0:
-		chips.append({"kind": &"exposed", "text": "Exposed %d" % exposed, "color": CardView.kind_color(CardEffect.Kind.EXPOSE)})
+		chips.append({"kind": &"exposed", "value": exposed, "text": "Exposed %d" % exposed, "color": CardView.kind_color(CardEffect.Kind.EXPOSE)})
 	var haunted := unit.status_turns(Combatant.Status.HAUNTED)
 	if haunted > 0:
-		chips.append({"kind": &"haunt", "text": "Haunt %d" % haunted, "color": CardView.kind_color(CardEffect.Kind.HAUNT)})
+		chips.append({"kind": &"haunt", "value": haunted, "text": "Haunt %d" % haunted, "color": CardView.kind_color(CardEffect.Kind.HAUNT)})
 	if unit.hold > 0:
-		chips.append({"kind": &"hold", "text": "Hold %d" % unit.hold, "color": CardView.kind_color(CardEffect.Kind.HOLD)})
+		chips.append({"kind": &"hold", "value": unit.hold, "text": "Hold %d" % unit.hold, "color": CardView.kind_color(CardEffect.Kind.HOLD)})
 	if unit.thorns > 0:
-		chips.append({"kind": &"thorns", "text": "Thorns %d" % unit.thorns, "color": CardView.kind_color(CardEffect.Kind.THORNS)})
+		chips.append({"kind": &"thorns", "value": unit.thorns, "text": "Thorns %d" % unit.thorns, "color": CardView.kind_color(CardEffect.Kind.THORNS)})
 	return chips
 
 
@@ -248,9 +248,8 @@ func _draw() -> void:
 		for x in [banner.position.x + 8, banner.end.x - 8]:
 			_diamond(Vector2(x, banner.get_center().y), 3.5, Color(frame, 0.9))
 
-	var win := Rect2(8, MARKER + 27, w - 16, 66)
-	_draw_window(win, p, dead)
-	_draw_chips(win)
+	_draw_window(window_rect(), p, dead)
+	_draw_chips()
 
 	# HP bar on the left, Block chip on the right.
 	var row_y := MARKER + 97
@@ -355,22 +354,61 @@ func _clipped_arc(c: Vector2, r: float, win: Rect2, col: Color) -> void:
 		prev = pt
 
 
-## Status pills along the bottom of the window; they wrap onto a row above when they run out of room.
-func _draw_chips(win: Rect2) -> void:
-	var x := win.position.x + 4
-	var y := win.end.y - 18.0
-	for chip in status_chips():
-		var text: String = chip.text
+## The portrait window, in this view's coordinates.
+func window_rect() -> Rect2:
+	var w := BOSS_BASE.x if is_boss else BASE.x
+	return Rect2(8, MARKER + 27, w - 16, 66)
+
+
+## The middle of the portrait window where the figure stands; status chips never enter it.
+func portrait_subject_rect() -> Rect2:
+	var win := window_rect()
+	var half := 56.0 if is_boss else 52.0
+	return Rect2(win.get_center().x - half, win.position.y, half * 2.0, win.size.y)
+
+
+## True when every chip fits as a full label ("Exposed 2") beside the portrait subject.
+func _chips_wide(chips: Array[Dictionary]) -> bool:
+	var side := portrait_subject_rect().position.x - window_rect().position.x - 8.0
+	for chip in chips:
+		if _font.get_string_size(chip.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x + 20.0 > side:
+			return false
+	return true
+
+
+## Where each status chip is drawn, in the order of status_chips(). They sit in two columns along the
+## left and right sides of the portrait window (alternating, so at most two per column), beside the
+## figure rather than over it. Full labels when they fit, otherwise icon and number only.
+func chip_rects() -> Array[Rect2]:
+	var rects: Array[Rect2] = []
+	var chips := status_chips()
+	var win := window_rect()
+	var wide := _chips_wide(chips)
+	var rows: Array[int] = [0, 0]
+	for i in chips.size():
+		var chip: Dictionary = chips[i]
+		var label: String = chip.text if wide else str(chip.value)
+		var width := _font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x + (20.0 if wide else 19.0)
+		var col_index := i % 2
+		var y: float = win.position.y + 4.0 + rows[col_index] * 17.0
+		rows[col_index] += 1
+		var x := win.position.x + 4.0 if col_index == 0 else win.end.x - 4.0 - width
+		rects.append(Rect2(x, y, width, 15))
+	return rects
+
+
+## Status pills beside the portrait (see chip_rects).
+func _draw_chips() -> void:
+	var chips := status_chips()
+	var rects := chip_rects()
+	var wide := _chips_wide(chips)
+	for i in chips.size():
+		var chip: Dictionary = chips[i]
+		var r := rects[i]
 		var col: Color = chip.color
-		var width := _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x + 20.0
-		if x + width > win.end.x - 3 and x > win.position.x + 4:
-			x = win.position.x + 4
-			y -= 17.0
-		var r := Rect2(x, y, width, 15)
 		_box(r, Color(0.04, 0.03, 0.05, 0.88), 7, 1, col)
-		_chip_icon(chip.kind, Vector2(x + 8, y + 7.5), col)
-		_text(text, Rect2(x + 14, y, width - 14, 15), 10, Color(0.97, 0.95, 0.92))
-		x += width + 4
+		_chip_icon(chip.kind, Vector2(r.position.x + 8, r.position.y + 7.5), col)
+		_text(chip.text if wide else str(chip.value), Rect2(r.position.x + 14, r.position.y, r.size.x - 14, 15), 10, Color(0.97, 0.95, 0.92))
 
 
 func _chip_icon(kind: StringName, c: Vector2, col: Color) -> void:

@@ -18,6 +18,7 @@ func _initialize() -> void:
 	DirAccess.make_dir_recursive_absolute(out_dir)
 	await _save_sheet(_all_enemies_sheet(), "enemies_all.png")
 	await _save_sheet(_states_sheet(), "enemies_states.png")
+	await _save_sheet(_chips_sheet(), "enemies_chips.png")
 	await _battle_shots()
 	quit()
 
@@ -84,6 +85,28 @@ func _states_sheet() -> Control:
 		var dead := _unit(path)
 		dead.take_damage(9999)
 		row.add_child(_view(dead, 2.0))
+		root_box.add_child(row)
+	return root_box
+
+
+## Status chips: 0, 2 and 4 statuses on a small enemy, a tall one and the Conductor's wider panel.
+func _chips_sheet() -> Control:
+	var root_box := VBoxContainer.new()
+	root_box.add_theme_constant_override("separation", 6)
+	for path in ["res://data/enemies/cinder_hound.tres", "res://data/enemies/pale_whisperer.tres", "res://data/enemies/the_conductor.tres"]:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", GAP)
+		for count in [0, 2, 4]:
+			var unit := _unit(path)
+			if count >= 1:
+				unit.apply_status(Combatant.Status.EXPOSED, 2)
+			if count >= 2:
+				unit.apply_status(Combatant.Status.HAUNTED, 3)
+			if count >= 3:
+				unit.hold = 4
+			if count >= 4:
+				unit.thorns = 12
+			row.add_child(_view(unit, 0.7))
 		root_box.add_child(row)
 	return root_box
 

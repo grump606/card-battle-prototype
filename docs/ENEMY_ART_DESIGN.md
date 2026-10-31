@@ -4,7 +4,7 @@ Enemies are drawn in code (`run/enemy_view.gd`, `class_name EnemyView`); no imag
 
 ## Panel layout (base 220x164, boss 300x164)
 
-9 px of marker room on top, then: name banner (13 px, shrinks to 8), portrait window (66 px) with status chips along its bottom, HP bar (left) with a Block chip (right), intent strip. Panels are `EnemyView`s directly in the battle `EnemyRow`, which centers them (1 to 3 fit: 3 x 220 + gaps = 688 of 1120 px). The row is 164 px high, leaving the hand (168) and End Turn visible at 1152x648.
+9 px of marker room on top, then: name banner (13 px, shrinks to 8), portrait window (66 px) with status chips in two columns beside the figure (never over it), HP bar (left) with a Block chip (right), intent strip. Panels are `EnemyView`s directly in the battle `EnemyRow`, which centers them (1 to 3 fit: 3 x 220 + gaps = 688 of 1120 px). The row is 164 px high, leaving the hand (168) and End Turn visible at 1152x648.
 
 ## Silhouettes (chosen by enemy name, `ART_KEYS`; unknown names draw a plain ghost)
 
@@ -37,7 +37,7 @@ Round badge in the kind colour: blade for any damage kind, shield for Block, cro
 
 ## Information kept from the old text panel
 
-Name, `HP n/max`, `Block n` (dimmed at 0), intent text, the target marker, and the status tooltip (Exposed, Haunt, Hold, Thorns) as the panel's tooltip. Statuses are also shown as chips (`status_chips()`): Exposed, Haunt, Hold, Thorns with their numbers.
+Name, `HP n/max`, `Block n` (dimmed at 0), intent text, the target marker, and the status tooltip (Exposed, Haunt, Hold, Thorns) as the panel's tooltip. Statuses are also shown as chips (`status_chips()`): Exposed, Haunt, Hold, Thorns with their numbers. Chips sit in the left and right columns of the portrait window (alternating, max two per column) outside `portrait_subject_rect()` (the middle 104 px, 112 px for the boss); `chip_rects()` gives their positions. They show full labels when those fit beside the subject (the Conductor), otherwise an icon plus the number (the tooltip names them).
 
 ## Animation
 
