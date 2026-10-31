@@ -23,11 +23,11 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Cache Godot engine
         id: godot-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ runner.temp }}/godot
           key: godot-${{ env.GODOT_VERSION }}-win64-${{ env.GODOT_ZIP_SHA512 }}
