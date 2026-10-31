@@ -1,6 +1,6 @@
 # Next steps
 
-Last updated after the artwork pass. Everything below is on `main` and pushed (`10b35fc`) unless noted.
+Last updated after relics and the installer. Everything below is on `main` and pushed (`054e94b`) unless noted.
 
 ## State
 
@@ -9,7 +9,9 @@ Last updated after the artwork pass. Everything below is on `main` and pushed (`
 - Card rewards: designs A and C are in (no repeats past 2 copies, skip pays 10 gold, free once-per-run Remove and Heal 12). See `docs/REWARDS_PROPOSAL.md`.
 - Artwork is all code-drawn (no image assets): cards with class palettes and damage icon variants, character select panels, enemy portraits with status chips beside the figure, battle backdrop, vendor stall, pause scene, and rest stop, story and end-card scenes. Design notes are in `docs/*_ART_DESIGN.md` and `docs/SCREEN_ART_DESIGN.md`.
 - The damage preview on cards matches the damage actually dealt (shared `CardEffect.raw_damage`).
-- Sim escape rates: greedy bot about 48 / 46 / 43% (Deserter / Pickpocket / Medium); smart bot about 81 / 75 / 67% since the free Heal and Remove were added (they made the smart bot about 7 points easier).
+- Relics: 12 relics (3 per class, 3 neutral) sold one per vendor visit, so at most two per run. Combat hooks, vendor stock, save support and code-drawn badges with a strip on the battle and run screens are in. Design: `docs/RELICS_DESIGN.md`, `docs/RELIC_ART_DESIGN.md`.
+- Windows installer: `scripts/build_installer.ps1` builds `build/CardBattlePrototype-Setup-<version>.exe` (Inno Setup, upgrades in place, refuses downgrades). Its GitHub update check only works once the repo is public. Details: `docs/INSTALLER.md`. The installer built so far (0.1.0) predates relics; bump `config/version` and rebuild to ship them.
+- Sim escape rates with bots buying relics: greedy about 52 / 47 / 47% (Deserter / Pickpocket / Medium); smart bot about 81 / 77 / 69%. Relics added under 4 points to any class. The free Heal and Remove had earlier made the smart bot about 7 points easier.
 
 ## To do, in the order I would take it
 
@@ -30,7 +32,8 @@ Last updated after the artwork pass. Everything below is on `main` and pushed (`
 - Several cards are rarely played by the bots (Spree, Pocket Watch, Seance, Spirit Tithe, Reckoning); worth a look if they feel weak in play.
 - Save-scumming (quit mid-fight, Continue replays the stop) is intentional.
 - Economy (gold, vendor prices) is still untested beyond a back-of-envelope check.
-- Bigger ideas: relics (the best replay value for the effort), a branching map, more enemies and an elite tier.
+- Relics: playtest the feel and prices (Brass Token Purse is the bots' favorite at 50 gold); the bots only buy relics and do not play around them, so sim numbers understate them. The barbed-wire badge reads closer to a chain. Tooltips have not been seen in a real run. More relic sources (elites, a free pick after a fight) are an option.
+- Bigger ideas: a branching map, more enemies and an elite tier (which could also drop relics).
 
 ## How to run
 
