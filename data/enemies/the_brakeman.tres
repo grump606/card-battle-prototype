@@ -21,10 +21,10 @@ amount = 1
 [sub_resource type="Resource" id="Resource_i4"]
 script = ExtResource("2_effect")
 kind = 0
-amount = 20
+amount = 18
 
 [resource]
 script = ExtResource("1_enemy")
 display_name = "The Brakeman"
-max_hp = 90
+max_hp = 96
 intents = Array[ExtResource("2_effect")]([SubResource("Resource_i1"), SubResource("Resource_i2"), SubResource("Resource_i3"), SubResource("Resource_i4")])

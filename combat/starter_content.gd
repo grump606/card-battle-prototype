@@ -97,6 +97,8 @@ const TRIO_EXCLUDED_PATHS: Array[String] = [LOST_SHADE_PATH]
 const RAMP_PER_FIGHT := 0.012
 ## Tier 1 (after the mid-boss) leans on the bigger enemies: a bigger chance of a big-plus-small pair,
 ## and a single is drawn from this list (each entry is one equal chance, so repeats weight it).
+## RESERVED: the stop line has no single-enemy fight after the mid-boss (and its shape is pinned by
+## the save signature), so this list is not drawn from today; it is kept for a future act-2 single.
 const TIER1_BIG_PAIR_CHANCE := 0.2
 const TIER1_SINGLE_PATHS: Array[String] = [
 	WARDEN_PATH, WARDEN_PATH, COLOSSUS_PATH, COLOSSUS_PATH, WHISPERER_PATH, CINDER_HOUND_PATH, MOURNING_CROW_PATH, LOST_SHADE_PATH,

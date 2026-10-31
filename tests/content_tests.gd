@@ -266,7 +266,7 @@ func _test_characters_and_pools() -> void:
 
 	_check(StarterContent.character_ids() == [&"deserter", &"pickpocket", &"medium"], "three characters, in selection order")
 	_check(StarterContent.character(&"nobody") == null, "an unknown character is null")
-	var max_hp := {&"deserter": 52, &"pickpocket": 34, &"medium": 56}
+	var max_hp := {&"deserter": 52, &"pickpocket": 36, &"medium": 60}
 	for id in StarterContent.character_ids():
 		var character := StarterContent.character(id)
 		_check(character != null and character.id == id and character.display_name != "" and character.pitch != "", "character %s loads with a name and pitch" % id)
