@@ -1,6 +1,6 @@
 # Next steps
 
-Last updated after relics and the installer. Everything below is on `main` and pushed (`054e94b`) unless noted.
+Last updated after the v0.2.0 release. Everything below is on `main` and pushed (`3b75f4a`) unless noted.
 
 ## State
 
@@ -10,7 +10,8 @@ Last updated after relics and the installer. Everything below is on `main` and p
 - Artwork is all code-drawn (no image assets): cards with class palettes and damage icon variants, character select panels, enemy portraits with status chips beside the figure, battle backdrop, vendor stall, pause scene, and rest stop, story and end-card scenes. Design notes are in `docs/*_ART_DESIGN.md` and `docs/SCREEN_ART_DESIGN.md`.
 - The damage preview on cards matches the damage actually dealt (shared `CardEffect.raw_damage`).
 - Relics: 12 relics (3 per class, 3 neutral) sold one per vendor visit, so at most two per run. Combat hooks, vendor stock, save support and code-drawn badges with a strip on the battle and run screens are in. Design: `docs/RELICS_DESIGN.md`, `docs/RELIC_ART_DESIGN.md`.
-- Windows installer: `scripts/build_installer.ps1` builds `build/CardBattlePrototype-Setup-<version>.exe` (Inno Setup, upgrades in place, refuses downgrades). Its GitHub update check only works once the repo is public. Details: `docs/INSTALLER.md`. The installer built so far (0.1.0) predates relics; bump `config/version` and rebuild to ship them.
+- Windows installer: `scripts/build_installer.ps1` builds `build/CardBattlePrototype-Setup-<version>.exe` (Inno Setup, upgrades in place, refuses downgrades). Its GitHub update check only works once the repo is public. Details: `docs/INSTALLER.md`. v0.2.0 (relics, the select screen's Back button, the installer) is published as a GitHub release with the setup exe attached; the repo is private, so only people with repo access can download it. To ship a new version: bump `config/version`, run the build script, and `gh release create v<version> build/CardBattlePrototype-Setup-<version>.exe`.
+- The character select screen has a Back button when it is reached from the Continue prompt or the end card (none on a first launch with no save).
 - Sim escape rates with bots buying relics: greedy about 52 / 47 / 47% (Deserter / Pickpocket / Medium); smart bot about 81 / 77 / 69%. Relics added under 4 points to any class. The free Heal and Remove had earlier made the smart bot about 7 points easier.
 
 ## To do, in the order I would take it
