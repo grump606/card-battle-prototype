@@ -28,7 +28,7 @@ Last updated after the v0.3.0 release. Everything below is on `main` and pushed 
    - The remove picker does not scroll for decks over about 30 cards.
    - Deck cards on the select screen are small (scale 0.62).
    - The class tint on the battle backdrop is faint (`TINT_AMOUNT` 14%).
-   - Enemy art is keyed by display name (`ART_KEYS` in `run/enemy_view.gd`); a new enemy needs an entry.
+   - Adding content: follow `docs/ADDING_CONTENT.md`. Tests now fail when a card, relic, enemy or character file is missing from its registry or an enemy has no `ART_KEYS` entry.
 
 ## Smaller open items
 

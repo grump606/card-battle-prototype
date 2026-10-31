@@ -5,7 +5,7 @@ extends SceneTree
 ##   godot --path . -s res://tools/vendor_sheet.gd -- <output dir>
 ## Default output is user://vendor_sheets. The shots use the project's 1152x648 window.
 
-const VENDOR_STOP := 6
+const VENDOR_STOP := 5
 
 var out_dir := "user://vendor_sheets"
 

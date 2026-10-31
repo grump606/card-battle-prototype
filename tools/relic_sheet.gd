@@ -7,7 +7,7 @@ extends SceneTree
 ## Default output is user://relic_sheets. The run shots use the project's 1152x648 window.
 
 const PALETTE_GROUPS := [[&"", "Neutral"], [&"deserter", "Deserter"], [&"pickpocket", "Pickpocket"], [&"medium", "Medium"]]
-const VENDOR_STOP := 6
+const VENDOR_STOP := 5
 const COMBAT_STOP := -1
 const GAP := 14
 
