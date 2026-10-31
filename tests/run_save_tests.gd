@@ -241,7 +241,7 @@ func _test_old_line_rejected() -> void:
 	data["line"] = "2:0:0:0,0:1:0:0,0:2:0:0,1:0:0:0,2:0:1:0,0:2:0:0,3:0:0:0,0:3:0:0,1:0:0:0,3:0:0:0,2:0:3:0,0:1:0:1"
 	data["stop_index"] = 5
 	var result := RunSave.from_dict(data)
-	_check(result.run == null and result.error.contains("stop line"), "a save from the old 12-stop line is rejected: %s" % result.error)
+	_check(result.run == null and result.error.contains("route"), "a save from the old 12-stop line is rejected: %s" % result.error)
 	# The new signature tells the mid-boss and the tier apart, so editing either is noticed.
 	var edited := RunState.new(3)
 	edited.stops[9].mid_boss = false

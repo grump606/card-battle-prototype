@@ -51,6 +51,10 @@ const CONDUCTOR_PATH := "res://data/enemies/the_conductor.tres"
 ## The mid-run boss, halfway down the line. Also not in ALL_ENEMY_PATHS: see mid_boss_encounter().
 const BRAKEMAN_PATH := "res://data/enemies/the_brakeman.tres"
 const EXTENDED_DECK_SIZE := 14
+## The bosses, which only appear through boss_encounter() and mid_boss_encounter().
+const BOSS_ENEMY_PATHS: Array[String] = [CONDUCTOR_PATH, BRAKEMAN_PATH]
+## Regular enemies that never join a pair or trio (they only appear as a single).
+const SOLO_ONLY_ENEMY_PATHS: Array[String] = [COLOSSUS_PATH]
 ## Every card, in a fixed order. A card's `character` tag says who may take it (empty = everyone).
 const ALL_CARD_PATHS: Array[String] = [
 	SHOVE_PATH, SLIP_PAST_PATH, GLIMPSE_EXIT_PATH, BRACE_PATH, FLURRY_PATH, SWEEP_PATH,

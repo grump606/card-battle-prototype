@@ -67,6 +67,8 @@ func _ready() -> void:
 		_start_combat()
 
 
+## Standalone mode (no external_combat): a random balance-test fight with the extended deck. Kept on
+## purpose: the UI tests (ui_battle_test, ui_relic_view_test) and a bare F6 of battle.tscn rely on it.
 func _start_combat() -> void:
 	var player := Combatant.new("Wanderer", PLAYER_START_HP)
 	var enemy_count := randi_range(1, Combat.MAX_ENEMIES)

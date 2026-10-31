@@ -73,10 +73,10 @@ static func from_dict(data: Variant) -> Result:
 	if version == null:
 		return Result.fail("save has no valid version")
 	if version != VERSION:
-		return Result.fail("save version %d is not supported (expected %d)" % [version, VERSION])
+		return Result.fail("this save was made by a different version of the game (save format %d, this game reads %d)" % [version, VERSION])
 	var character_id: Variant = d.get("character")
 	if typeof(character_id) != TYPE_STRING or not StarterContent.CHARACTER_PATHS.has(StringName(character_id)):
-		return Result.fail("save names an unknown character")
+		return Result.fail("this save names a character that no longer exists")
 	var run := RunState.new(0, StringName(character_id))
 	if run.character.id != StringName(character_id):
 		return Result.fail("character content failed to load")
@@ -91,7 +91,7 @@ static func from_dict(data: Variant) -> Result:
 		return Result.fail("bad gold")
 	var line: Variant = d.get("line")
 	if typeof(line) != TYPE_STRING or line != line_signature(run):
-		return Result.fail("save is from a different stop line")
+		return Result.fail("this save is from an older version of the game's route and cannot be continued")
 	var stop_index: Variant = _int(d, "stop_index", 0, run.stops.size() - 1)
 	if stop_index == null:
 		return Result.fail("bad stop_index")
@@ -111,7 +111,7 @@ static func from_dict(data: Variant) -> Result:
 	var deck: Array[CardData] = []
 	for entry in raw_deck:
 		if typeof(entry) != TYPE_STRING or not known.has(entry):
-			return Result.fail("deck has an unknown card")
+			return Result.fail("this save contains a card that no longer exists")
 		deck.append(known[entry])
 	# Added after version 2 shipped: a save without it is a run that had seen no rewards yet.
 	var offered: Array[StringName] = []
@@ -139,7 +139,7 @@ static func from_dict(data: Variant) -> Result:
 			return Result.fail("bad relics list")
 		for entry in raw_relics:
 			if typeof(entry) != TYPE_STRING or not known_relics.has(entry) or relics.has(known_relics[entry]):
-				return Result.fail("relics list has an unknown or repeated relic")
+				return Result.fail("this save contains a relic that no longer exists, or the same relic twice")
 			relics.append(known_relics[entry])
 	run.relics = relics
 	run.offered_ids = offered
@@ -188,7 +188,7 @@ static func load_file(path: String = DEFAULT_PATH) -> Result:
 	file.close()
 	var json := JSON.new()
 	if json.parse(text) != OK:
-		return Result.fail("save is not valid JSON")
+		return Result.fail("the save file is damaged (not valid JSON)")
 	return from_dict(json.data)
 
 

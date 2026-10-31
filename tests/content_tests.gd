@@ -17,6 +17,9 @@ func run() -> int:
 	_test_colossus_never_in_pairs_or_trios()
 	_test_boss_encounter()
 	_test_mid_boss_encounter()
+	_test_registries_complete()
+	_test_registry_entries_load()
+	_test_enemy_registry_wiring()
 	return _failures
 
 
@@ -286,3 +289,78 @@ func _test_characters_and_pools() -> void:
 	for card in StarterContent.reward_pool(&"deserter"):
 		deserter_ids[card.id] = true
 	_check(deserter_ids.has(&"heavy_blow") and not deserter_ids.has(&"hamstring"), "the Deserter can take Heavy Blow but not the Pickpocket's Hamstring")
+
+
+## Registry guard: every .tres file in `dir` that is not in `registered` (or in `excluded`) fails,
+## so adding a data file without listing it in StarterContent cannot go unnoticed.
+func _check_registry_complete(dir: String, registered: Array, excluded: Array, label: String) -> void:
+	var seen := {}
+	for path in registered:
+		_check(not seen.has(path), "%s registry has no duplicate: %s" % [label, path])
+		seen[path] = true
+		_check(ResourceLoader.exists(path), "%s registry path exists: %s" % [label, path])
+	var files := DirAccess.get_files_at(dir)
+	_check(not files.is_empty(), "%s directory scan found files in %s" % [label, dir])
+	for file in files:
+		if not file.ends_with(".tres"):
+			continue
+		var path := dir.path_join(file)
+		_check(seen.has(path) or excluded.has(path), "%s file is missing from StarterContent: %s (see docs/ADDING_CONTENT.md)" % [label, path])
+
+
+func _test_registries_complete() -> void:
+	_check_registry_complete("res://data/cards", StarterContent.ALL_CARD_PATHS, [], "card")
+	_check_registry_complete("res://data/relics", StarterContent.RELIC_PATHS, [], "relic")
+	var characters: Array = StarterContent.CHARACTER_PATHS.values()
+	_check_registry_complete("res://data/characters", characters, [], "character")
+	# Bosses are deliberately outside ALL_ENEMY_PATHS (they only appear via their own encounters).
+	var enemies: Array = StarterContent.ALL_ENEMY_PATHS.duplicate()
+	enemies.append_array(StarterContent.BOSS_ENEMY_PATHS)
+	_check_registry_complete("res://data/enemies", enemies, [], "enemy")
+
+
+func _test_registry_entries_load() -> void:
+	var card_ids := {}
+	for path in StarterContent.ALL_CARD_PATHS:
+		var card := load(path) as CardData
+		_check(card != null, "card registry entry loads as CardData: %s" % path)
+		if card != null:
+			_check(not card_ids.has(card.id), "card id is unique: %s" % card.id)
+			card_ids[card.id] = true
+	var relic_ids := {}
+	for path in StarterContent.RELIC_PATHS:
+		var relic := load(path) as RelicData
+		_check(relic != null, "relic registry entry loads as RelicData: %s" % path)
+		if relic != null:
+			_check(not relic_ids.has(relic.id), "relic id is unique: %s" % relic.id)
+			relic_ids[relic.id] = true
+	for id in StarterContent.CHARACTER_PATHS:
+		var character := StarterContent.character(id)
+		_check(character != null and character.id == id, "character registry key matches the resource id: %s" % id)
+	_check(StarterContent.CHARACTER_PATHS.has(StarterContent.DEFAULT_CHARACTER_ID), "the default character is registered")
+	_check(StarterContent.all_cards().size() == StarterContent.ALL_CARD_PATHS.size(), "all_cards loads the whole registry")
+	_check(StarterContent.all_relics().size() == StarterContent.RELIC_PATHS.size(), "all_relics loads the whole registry")
+
+
+## Every regular enemy must be placed in an encounter pool (or be a documented solo-only enemy), and
+## every enemy (regular or boss) needs portrait art keyed by its display name in EnemyView.ART_KEYS.
+func _test_enemy_registry_wiring() -> void:
+	for path in StarterContent.ALL_ENEMY_PATHS:
+		var placed: bool = StarterContent.SMALL_ENEMY_PATHS.has(path) or StarterContent.PAIR_BIG_ENEMY_PATHS.has(path) or StarterContent.SOLO_ONLY_ENEMY_PATHS.has(path)
+		_check(placed, "regular enemy is in a pair/trio pool or SOLO_ONLY_ENEMY_PATHS: %s" % path)
+	for pool in [StarterContent.SMALL_ENEMY_PATHS, StarterContent.PAIR_BIG_ENEMY_PATHS, StarterContent.SOLO_ONLY_ENEMY_PATHS, StarterContent.TIER1_SINGLE_PATHS, StarterContent.TRIO_EXCLUDED_PATHS]:
+		for path in pool:
+			_check(StarterContent.ALL_ENEMY_PATHS.has(path), "encounter pool entry is a registered regular enemy: %s" % path)
+	var every: Array = StarterContent.ALL_ENEMY_PATHS.duplicate()
+	every.append_array(StarterContent.BOSS_ENEMY_PATHS)
+	var names := {}
+	for path in every:
+		var enemy := load(path) as EnemyData
+		_check(enemy != null, "enemy registry entry loads as EnemyData: %s" % path)
+		if enemy == null:
+			continue
+		_check(not names.has(enemy.display_name), "enemy display name is unique: %s" % enemy.display_name)
+		names[enemy.display_name] = true
+		_check(EnemyView.ART_KEYS.has(enemy.display_name), "EnemyView.ART_KEYS has an entry for '%s' (see docs/ADDING_CONTENT.md)" % enemy.display_name)
+		if EnemyView.ART_KEYS.has(enemy.display_name):
+			_check(EnemyView.ART_COLORS.has(EnemyView.ART_KEYS[enemy.display_name]), "EnemyView.ART_COLORS has colours for '%s'" % enemy.display_name)
