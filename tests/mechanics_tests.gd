@@ -184,6 +184,17 @@ func _test_thorns() -> void:
 	finishing.end_player_turn()
 	_check(won[0] and finishing.phase == Combat.Phase.ENDED, "thorns that kill the last enemy win the fight")
 
+	# A hit that kills the player while the thorns kill the last enemy is a defeat, not a win.
+	var mutual := _fight([stance], 3, [_fx(CardEffect.Kind.DAMAGE, 50)])
+	var outcome := [null]
+	mutual.combat_ended.connect(func(victory: bool) -> void: outcome[0] = victory)
+	_play(mutual, stance)
+	mutual.player.hp = 1
+	mutual.player.block = 0
+	mutual.end_player_turn()
+	_check(mutual.enemies[0].is_dead() and mutual.player.is_dead(), "setup: the thorns and the hit kill both sides")
+	_check(outcome[0] == false and mutual.phase == Combat.Phase.ENDED, "when the player and the last enemy die together it is a defeat")
+
 	var passive := _fight([stance], 50, [_fx(CardEffect.Kind.BLOCK, 3)])
 	_play(passive, stance)
 	passive.end_player_turn()

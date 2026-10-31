@@ -302,7 +302,9 @@ func _apply(effect: CardEffect, source: Combatant, target: Combatant) -> void:
 func _check_end() -> bool:
 	if phase == Phase.ENDED:
 		return true
-	var victory := living_enemies().is_empty()
+	# Thorns can kill the last enemy on the same enemy action that kills the player; a dead
+	# player has lost, so that is a defeat, never a victory.
+	var victory := living_enemies().is_empty() and not player.is_dead()
 	if not (victory or player.is_dead()):
 		return false
 	phase = Phase.ENDED
@@ -311,8 +313,6 @@ func _check_end() -> bool:
 	player.clear_block()
 	player.clear_statuses()
 	state_changed.emit()
-	# The player can only die on an enemy action and enemies only die on the
-	# player's, so both cannot be true at once.
 	combat_ended.emit(victory)
 	player.changed.disconnect(_player_changed_link)
 	return true

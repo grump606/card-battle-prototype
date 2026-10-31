@@ -167,10 +167,6 @@ func complete_combat(victory: bool) -> void:
 		push_error("RunState.complete_combat: not at a combat stop awaiting a result")
 		return
 	_active_combat = null
-	# A hit that kills the player while Thorns kill the last enemy reports a victory with a dead
-	# player (Combat._check_end); a dead player cannot go on, so it counts as the defeat it is.
-	if player.is_dead():
-		victory = false
 	if not victory:
 		finished = true
 		escaped = false
