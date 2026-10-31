@@ -21,6 +21,8 @@ Open the project in Godot 4.7 and press F5, or:
 & $env:GODOT --path .
 ```
 
+On launch the game checks GitHub once for a newer release and shows a dismissible notice if there is one; set `CARD_BATTLE_NO_UPDATE_CHECK=1` to turn that off (`docs/UPDATE_CHECK.md`).
+
 ## Test
 
 Full validation (import, tests, main-scene smoke load; nonzero exit on any failure):

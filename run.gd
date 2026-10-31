@@ -25,6 +25,8 @@ var _pause_button: Button
 var _pause_overlay: Control
 var _pause_box: VBoxContainer
 var _pause_scene: PauseScene
+## "Update available" bar over the first screens (character select, Continue prompt); tests read it.
+var _update_notice: UpdateNotice
 
 ## The screens. The vendor and reward screens keep their own view state between redraws.
 var _select := SelectScreen.new()
@@ -41,6 +43,9 @@ func _ready() -> void:
 	_header_strip = RelicStrip.create([] as Array[RelicData])
 	_header_row.add_child(_header_strip)
 	_build_pause_menu()
+	_update_notice = UpdateNotice.new()
+	add_child(_update_notice)
+	_update_notice.start() # asynchronous and silent on any failure; skipped headless (docs/UPDATE_CHECK.md)
 	_body.resized.connect(_select.recenter)
 	resized.connect(_select.recenter)
 	var loaded := RunSave.load_file(save_path)
@@ -61,6 +66,7 @@ func _open(screen: RunScreen) -> void:
 ## Launch with a valid save: nothing starts until the player picks Continue or New Run.
 func _offer_continue(saved: RunState) -> void:
 	_pause_button.visible = false
+	_update_notice.set_allowed(true)
 	_header_strip.set_relics([] as Array[RelicData])
 	_clear_body() # Back from the select screen arrives here with that screen still shown
 	_header.text = "Saved run found"
@@ -80,6 +86,7 @@ func _continue_run(saved: RunState) -> void:
 ## none when the select screen is the first screen (no save, or a save that failed to load).
 func _new_run(back := Callable()) -> void:
 	_pause_button.visible = false
+	_update_notice.set_allowed(true)
 	_header_strip.set_relics([] as Array[RelicData])
 	_clear_body()
 	var prefix := _notice + "\n" if _notice != "" else ""
@@ -104,6 +111,7 @@ func _show_stop() -> void:
 	# A notice lives for one redraw past the one that first showed it.
 	if _notice_shown:
 		_notice = ""
+	_update_notice.set_allowed(false) # only the first screens carry it, never a run in progress
 	_clear_body()
 	if _run.finished:
 		_delete_save()

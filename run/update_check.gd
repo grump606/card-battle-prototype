@@ -1,0 +1,85 @@
+class_name UpdateCheck
+extends RefCounted
+## The pure logic of the in-game update check (see docs/UPDATE_CHECK.md): which launches check at
+## all, what the GitHub reply may contain, how versions compare and what the notice says. No
+## network and no nodes here; run/update_notice.gd does the request and feeds the reply to this.
+## Everything that comes from the reply is untrusted and validated before use.
+
+## The only request the game makes, and the only page it will ever open. Both are fixed here and
+## never built from the reply.
+const LATEST_RELEASE_API := "https://api.github.com/repos/grump606/card-battle-prototype/releases/latest"
+const RELEASES_PAGE := "https://github.com/grump606/card-battle-prototype/releases/latest"
+## A reply larger than this is ignored (HTTPRequest.body_size_limit is set to it too).
+const MAX_BODY_BYTES := 65536
+const TIMEOUT_SECONDS := 5.0
+## Set to any value to turn the check off.
+const DISABLE_ENV := "CARD_BATTLE_NO_UPDATE_CHECK"
+## 1 to 4 dotted groups of at most 4 ASCII digits, with an optional leading v. `\z`, not `$`, so a
+## trailing newline is not accepted; [0-9], not `\d`, so other scripts' digits are not either.
+const TAG_PATTERN := "^[vV]?[0-9]{1,4}(\\.[0-9]{1,4}){0,3}\\z"
+
+static var _tag_regex: RegEx
+
+
+## Whether this launch should ask GitHub: not in a headless run (tests, CI, the sims) and not when
+## the opt-out variable is set to anything. The arguments are passed in so tests can vary them.
+static func check_enabled(display_name: String, disable_env_value: String) -> bool:
+	return display_name != "headless" and disable_env_value == ""
+
+
+## True when `tag` is a plain version ("v0.3.1", "0.4", "V2"), and nothing else.
+static func is_valid_tag(tag: Variant) -> bool:
+	if not tag is String or (tag as String).length() > 24:
+		return false
+	if _tag_regex == null:
+		_tag_regex = RegEx.create_from_string(TAG_PATTERN)
+	return _tag_regex.search(tag) != null
+
+
+## The numbers of a valid tag ("v1.2.10" is [1, 2, 10]); empty for anything else.
+static func parse_version(tag: Variant) -> PackedInt32Array:
+	var parts := PackedInt32Array()
+	if not is_valid_tag(tag):
+		return parts
+	for piece in (tag as String).trim_prefix("v").trim_prefix("V").split("."):
+		parts.append(int(piece))
+	return parts
+
+
+## True when `latest` is a strictly higher version than `current`. Dotted numeric comparison with
+## missing groups counted as 0 (1.2.10 > 1.2.9, 0.3.1 > 0.3, 0.3.0 == 0.3). If either side is not
+## a valid version the answer is false: nothing unreadable ever produces a notice.
+static func is_newer(latest: Variant, current: Variant) -> bool:
+	var a := parse_version(latest)
+	var b := parse_version(current)
+	if a.is_empty() or b.is_empty():
+		return false
+	for i in maxi(a.size(), b.size()):
+		var left := a[i] if i < a.size() else 0
+		var right := b[i] if i < b.size() else 0
+		if left != right:
+			return left > right
+	return false
+
+
+## The release tag in a GitHub "latest release" reply, or "" if the reply is not a clean 200 with
+## a JSON object holding a valid "tag_name".
+static func tag_from_response(code: int, body: PackedByteArray) -> String:
+	if code != 200 or body.is_empty() or body.size() > MAX_BODY_BYTES:
+		return ""
+	var json := JSON.new()
+	if json.parse(body.get_string_from_utf8()) != OK or not json.data is Dictionary:
+		return ""
+	var tag: Variant = (json.data as Dictionary).get("tag_name")
+	return tag if is_valid_tag(tag) else ""
+
+
+## The newer release's tag when the reply announces one, else "".
+static func newer_tag(code: int, body: PackedByteArray, current: String) -> String:
+	var tag := tag_from_response(code, body)
+	return tag if tag != "" and is_newer(tag, current) else ""
+
+
+## "Update available: v0.3.1 (you have 0.3.0)". The tag must already be valid.
+static func notice_text(tag: String, current: String) -> String:
+	return "Update available: v%s (you have %s)" % [tag.trim_prefix("v").trim_prefix("V"), current.trim_prefix("v").trim_prefix("V")]
