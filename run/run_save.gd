@@ -33,7 +33,7 @@ class Result extends RefCounted:
 static func line_signature(run: RunState) -> String:
 	var parts: Array[String] = []
 	for stop in run.stops:
-		parts.append("%d:%d:%d:%d" % [stop.type, stop.enemy_count, stop.beat_index, 1 if stop.boss else 0])
+		parts.append("%d:%d:%d:%d:%d:%d" % [stop.type, stop.enemy_count, stop.beat_index, 1 if stop.boss else 0, 1 if stop.mid_boss else 0, stop.tier])
 	return ",".join(parts)
 
 

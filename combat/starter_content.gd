@@ -48,6 +48,8 @@ const COLOSSUS_PATH := "res://data/enemies/hollow_colossus.tres"
 const WHISPERER_PATH := "res://data/enemies/pale_whisperer.tres"
 ## The run's boss. Deliberately not in ALL_ENEMY_PATHS: it only appears via boss_encounter().
 const CONDUCTOR_PATH := "res://data/enemies/the_conductor.tres"
+## The mid-run boss, halfway down the line. Also not in ALL_ENEMY_PATHS: see mid_boss_encounter().
+const BRAKEMAN_PATH := "res://data/enemies/the_brakeman.tres"
 const EXTENDED_DECK_SIZE := 14
 ## Every card, in a fixed order. A card's `character` tag says who may take it (empty = everyone).
 const ALL_CARD_PATHS: Array[String] = [
@@ -85,6 +87,16 @@ const BIG_PAIR_CHANCE := 0.15
 ## Trios leave out the Lost Shade (the sturdiest small enemy): three of them out-damaged the
 ## run mid-line, and the fragile wisps and whisperers keep a three-way fight winnable.
 const TRIO_EXCLUDED_PATHS: Array[String] = [LOST_SHADE_PATH]
+## Stat ramp: a regular fight's enemies get max HP and attack damage multiplied by
+## 1 + RAMP_PER_FIGHT * fight, where `fight` is the 0-based number of the regular fight on the line
+## (bosses are hand-tuned and never ramped). Block and statuses are not scaled.
+const RAMP_PER_FIGHT := 0.012
+## Tier 1 (after the mid-boss) leans on the bigger enemies: a bigger chance of a big-plus-small pair,
+## and a single is drawn from this list (each entry is one equal chance, so repeats weight it).
+const TIER1_BIG_PAIR_CHANCE := 0.2
+const TIER1_SINGLE_PATHS: Array[String] = [
+	WARDEN_PATH, WARDEN_PATH, COLOSSUS_PATH, COLOSSUS_PATH, WHISPERER_PATH, CINDER_HOUND_PATH, MOURNING_CROW_PATH, LOST_SHADE_PATH,
+]
 
 
 ## Card definitions are immutable data, so deck slots of the same card share one instance.
@@ -230,14 +242,19 @@ static func enemy_pool() -> Array[EnemyData]:
 ## warden plus a small enemy or two small ones, and a trio is all small enemies.
 ## Enemies whose resource fails to load are left out (the cause is logged), so
 ## the result can be smaller than requested or empty.
-static func varied_encounter(enemy_count: int, rng: RandomNumberGenerator) -> Array[EnemyData]:
+##
+## `tier` (0 = before the mid-boss, 1 = after) picks the pools (see TIER1_*), and `fight` is the
+## regular fight's 0-based number, which sets the stat ramp (see RAMP_PER_FIGHT). The defaults give
+## the unramped tier 0 encounter; tier and fight draw nothing extra from `rng`.
+static func varied_encounter(enemy_count: int, rng: RandomNumberGenerator, tier: int = 0, fight: int = 0) -> Array[EnemyData]:
 	var count := clampi(enemy_count, 1, Combat.MAX_ENEMIES)
 	var paths: Array[String] = []
+	var big_pair_chance := TIER1_BIG_PAIR_CHANCE if tier >= 1 else BIG_PAIR_CHANCE
 	match count:
 		1:
-			paths.append(_pick_path(ALL_ENEMY_PATHS, rng))
+			paths.append(_pick_path(TIER1_SINGLE_PATHS if tier >= 1 else ALL_ENEMY_PATHS, rng))
 		2:
-			if rng.randf() < BIG_PAIR_CHANCE:
+			if rng.randf() < big_pair_chance:
 				paths.append(_pick_path(PAIR_BIG_ENEMY_PATHS, rng))
 				paths.append(_pick_path(SMALL_ENEMY_PATHS, rng))
 			else:
@@ -246,12 +263,32 @@ static func varied_encounter(enemy_count: int, rng: RandomNumberGenerator) -> Ar
 		_:
 			for i in count:
 				paths.append(_pick_path(_trio_paths(), rng))
+	var factor := ramp_factor(fight)
 	var enemies: Array[EnemyData] = []
 	for path in paths:
 		var enemy := _load_enemy(path)
 		if enemy != null:
-			enemies.append(enemy)
+			enemies.append(scaled(enemy, factor))
 	return enemies
+
+
+## The stat multiplier for the regular fight numbered `fight` (0-based; below 0 counts as 0).
+static func ramp_factor(fight: int) -> float:
+	return 1.0 + RAMP_PER_FIGHT * maxi(fight, 0)
+
+
+## `enemy` with max HP and DAMAGE intents scaled by `factor` (rounded, never below 1). Returns a new
+## EnemyData with new intents, so the shared resource is never touched; factor 1.0 returns `enemy` itself.
+static func scaled(enemy: EnemyData, factor: float) -> EnemyData:
+	if is_equal_approx(factor, 1.0):
+		return enemy
+	var intents: Array[CardEffect] = []
+	for intent in enemy.intents:
+		if intent.kind == CardEffect.Kind.DAMAGE:
+			intents.append(CardEffect.make(intent.kind, maxi(roundi(intent.amount * factor), 1), intent.bonus, intent.threshold))
+		else:
+			intents.append(intent)
+	return EnemyData.make(enemy.display_name, maxi(roundi(enemy.max_hp * factor), 1), intents)
 
 
 ## SMALL_ENEMY_PATHS minus TRIO_EXCLUDED_PATHS, so a new small enemy joins trios by default.
@@ -268,6 +305,15 @@ static func _trio_paths() -> Array[String]:
 static func boss_encounter() -> Array[EnemyData]:
 	var enemies: Array[EnemyData] = []
 	var boss := _load_enemy(CONDUCTOR_PATH)
+	if boss != null:
+		enemies.append(boss)
+	return enemies
+
+
+## The mid-run boss fight: the Brakeman alone. Empty (cause logged) if it fails to load.
+static func mid_boss_encounter() -> Array[EnemyData]:
+	var enemies: Array[EnemyData] = []
+	var boss := _load_enemy(BRAKEMAN_PATH)
 	if boss != null:
 		enemies.append(boss)
 	return enemies

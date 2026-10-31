@@ -16,6 +16,7 @@ func run() -> int:
 	_test_encounter_composition()
 	_test_colossus_never_in_pairs_or_trios()
 	_test_boss_encounter()
+	_test_mid_boss_encounter()
 	return _failures
 
 
@@ -196,6 +197,54 @@ func _test_boss_encounter() -> void:
 				_check(enemy.display_name != "The Conductor", "the boss never appears in a random encounter (seed %d)" % seed_value)
 
 
+func _test_mid_boss_encounter() -> void:
+	var mid := StarterContent.mid_boss_encounter()
+	_check(mid.size() == 1 and mid[0].display_name == "The Brakeman", "mid_boss_encounter is the Brakeman alone")
+	_check(mid[0] != StarterContent.mid_boss_encounter()[0], "each mid-boss encounter owns its own copy of the data")
+	var boss := StarterContent.boss_encounter()[0]
+	var tougher_than_all := true
+	for enemy in StarterContent.enemy_pool():
+		tougher_than_all = tougher_than_all and mid[0].max_hp > enemy.max_hp
+	_check(tougher_than_all and mid[0].max_hp < boss.max_hp + 1, "the Brakeman has more HP than any regular enemy and no more than the Conductor")
+	var kinds := {}
+	for intent in mid[0].intents:
+		kinds[intent.kind] = true
+	_check(kinds.has(CardEffect.Kind.DAMAGE) and kinds.has(CardEffect.Kind.BLOCK) and kinds.has(CardEffect.Kind.EXPOSE), "the Brakeman mixes attacks, block and a status")
+	var pool_names := []
+	for enemy in StarterContent.enemy_pool():
+		pool_names.append(enemy.display_name)
+	_check(not pool_names.has("The Brakeman"), "the mid-boss is not in the random enemy pool")
+	for seed_value in 60:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = seed_value
+		for tier in [0, 1]:
+			for count in [1, 2, 3]:
+				for enemy in StarterContent.varied_encounter(count, rng, tier, seed_value % 8):
+					_check(enemy.display_name != "The Brakeman" and enemy.display_name != "The Conductor", "no boss appears in a random encounter")
+	# Tier 1 draws the same number of random values as tier 0, so the run RNG stays in step.
+	for count in [1, 2, 3]:
+		var a := RandomNumberGenerator.new()
+		a.seed = 9
+		var b := RandomNumberGenerator.new()
+		b.seed = 9
+		StarterContent.varied_encounter(count, a, 0, 0)
+		StarterContent.varied_encounter(count, b, 1, 5)
+		_check(a.randi() == b.randi(), "tier and fight draw nothing extra from the rng (count %d)" % count)
+	# Tier 1 pairs include a big enemy more often than tier 0.
+	var big_t0 := 0
+	var big_t1 := 0
+	for seed_value in 400:
+		var r0 := RandomNumberGenerator.new()
+		r0.seed = seed_value
+		var r1 := RandomNumberGenerator.new()
+		r1.seed = seed_value
+		for enemy in StarterContent.varied_encounter(2, r0, 0, 0):
+			big_t0 += 1 if enemy.display_name == "Gate Warden" else 0
+		for enemy in StarterContent.varied_encounter(2, r1, 1, 0):
+			big_t1 += 1 if enemy.display_name == "Gate Warden" else 0
+	_check(big_t1 > big_t0, "tier 1 pairs field the Gate Warden more often (%d vs %d of 400)" % [big_t1, big_t0])
+
+
 ## Characters own their starting decks and class cards; neutral cards are shared.
 func _test_characters_and_pools() -> void:
 	var all := StarterContent.all_cards()
@@ -214,7 +263,7 @@ func _test_characters_and_pools() -> void:
 
 	_check(StarterContent.character_ids() == [&"deserter", &"pickpocket", &"medium"], "three characters, in selection order")
 	_check(StarterContent.character(&"nobody") == null, "an unknown character is null")
-	var max_hp := {&"deserter": 47, &"pickpocket": 34, &"medium": 41}
+	var max_hp := {&"deserter": 52, &"pickpocket": 34, &"medium": 56}
 	for id in StarterContent.character_ids():
 		var character := StarterContent.character(id)
 		_check(character != null and character.id == id and character.display_name != "" and character.pitch != "", "character %s loads with a name and pitch" % id)

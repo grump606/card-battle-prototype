@@ -135,12 +135,13 @@ func _initialize() -> void:
 		print("On escapes: n/a")
 	print("")
 	print("Per stop (deaths = runs that died there; avg HP is on arrival)")
-	print("%-5s %-18s %8s %7s %12s" % ["stop", "description", "reached", "deaths", "avg HP in"])
+	print("%-5s %-18s %8s %7s %8s %12s" % ["stop", "description", "reached", "deaths", "loss %", "avg HP in"])
 	var indices: Array = entering.keys()
 	indices.sort()
 	for index: int in indices:
 		var tally: Array = entering[index]
-		print("%-5d %-18s %8d %7d %12.2f" % [index, stop_desc[index], tally[0], deaths_at.get(index, 0), float(tally[1]) / tally[0]])
+		var deaths: int = deaths_at.get(index, 0)
+		print("%-5d %-18s %8d %7d %7.1f%% %12.2f" % [index, stop_desc[index], tally[0], deaths, 100.0 * deaths / tally[0], float(tally[1]) / tally[0]])
 	print("")
 	print("Deaths by stop description")
 	var descs: Array = deaths_by_desc.keys()

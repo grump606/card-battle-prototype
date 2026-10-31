@@ -22,6 +22,8 @@ func run() -> int:
 	_test_bad_fields()
 	_test_offered_ids()
 	_test_reward_alternative_flags()
+	_test_old_line_rejected()
+	_test_act_two_round_trip()
 	_test_save_refused_mid_flight()
 	_cleanup()
 	return _failures
@@ -105,7 +107,7 @@ func _test_round_trip_equal_state() -> void:
 
 
 func _test_resume_has_equal_future() -> void:
-	for cut in [0, 1, 2, 6, 9]:
+	for cut in [0, 1, 2, 6, 9, 10, 15]:
 		var original := RunState.new(1234)
 		_walk(original, cut)
 		var resumed := _clone(original)
@@ -175,7 +177,7 @@ func _test_bad_fields() -> void:
 		"hp": [0, -5, 9999, "x", null, 3.5],
 		"max_hp": [0, -1, 100000, "x"],
 		"gold": [-1, 99999999, "x", null],
-		"stop_index": [-1, 12, 500, "x", null],
+		"stop_index": [-1, 21, 500, "x", null],
 		"rng_state": [12, "abc", "", null, "99999999999999999999", "-99999999999999999999", "007"],
 		"line": ["", "x", 5, null],
 		"deck": [[], "x", ["no_such_card"], [5], null],
@@ -231,6 +233,49 @@ func _test_reward_alternative_flags() -> void:
 			var data := RunSave.to_dict(RunState.new(3))
 			data[key] = bad
 			_check(RunSave.from_dict(data).run == null, "%s = %s is rejected" % [key, JSON.stringify(bad)])
+
+
+## The 12-stop line shipped before the long line; a save from it must be refused, not misloaded.
+func _test_old_line_rejected() -> void:
+	var data := RunSave.to_dict(RunState.new(3))
+	data["line"] = "2:0:0:0,0:1:0:0,0:2:0:0,1:0:0:0,2:0:1:0,0:2:0:0,3:0:0:0,0:3:0:0,1:0:0:0,3:0:0:0,2:0:3:0,0:1:0:1"
+	data["stop_index"] = 5
+	var result := RunSave.from_dict(data)
+	_check(result.run == null and result.error.contains("stop line"), "a save from the old 12-stop line is rejected: %s" % result.error)
+	# The new signature tells the mid-boss and the tier apart, so editing either is noticed.
+	var edited := RunState.new(3)
+	edited.stops[9].mid_boss = false
+	_check(RunSave.line_signature(edited) != RunSave.line_signature(RunState.new(3)), "the line signature covers the mid-boss flag")
+	edited = RunState.new(3)
+	edited.stops[12].tier = 0
+	_check(RunSave.line_signature(edited) != RunSave.line_signature(RunState.new(3)), "the line signature covers the tier")
+	var bad_tail := RunSave.to_dict(RunState.new(3))
+	bad_tail["stop_index"] = 21
+	_check(RunSave.from_dict(bad_tail).run == null, "a stop index past the 21-stop line is rejected")
+
+
+## A run saved in act 2 (past the mid-boss) restores with everything intact, including relics,
+## offered ids and the reward flags, and plays on identically.
+func _test_act_two_round_trip() -> void:
+	var state := RunState.new(21, &"medium")
+	_walk(state, 11)
+	_check(state.stop_index >= 11 and not state.finished, "setup: the run is in act 2")
+	state.gold = 400
+	state.reward_remove_used = true
+	var relic: RelicData = StarterContent.relic_pool(&"medium")[0]
+	state.relics.assign([relic])
+	state.player.hp = 13
+	var copy := _clone(state)
+	_check(copy != null and RunSave.to_dict(copy) == RunSave.to_dict(state), "a mid-act-2 save restores to the same dict")
+	if copy == null:
+		return
+	_check(copy.stop_index == state.stop_index and copy.current_stop().tier == 1, "the restored run stands in tier 1")
+	_check(copy.relics == state.relics and copy.offered_ids == state.offered_ids and copy.reward_remove_used and not copy.reward_heal_used, "relics, offered ids and reward flags survive")
+	_check(RunSave.save(state, test_path) == "" and RunSave.load_file(test_path).run != null, "an act 2 run saves to and loads from a file")
+	_cleanup()
+	var future_a := _walk(state, 99)
+	var future_b := _walk(copy, 99)
+	_check(future_a == future_b and not future_a.is_empty(), "the restored act 2 run has the same future")
 
 
 func _test_save_refused_mid_flight() -> void:

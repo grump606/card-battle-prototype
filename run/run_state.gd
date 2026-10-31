@@ -10,7 +10,7 @@ extends RefCounted
 
 enum StopType { COMBAT, REST, STORY, VENDOR }
 
-const REST_HEAL := 24
+const REST_HEAL := 36
 const REWARD_CHOICES := 3
 ## How many of a reward's choices come from the character's own cards (the rest are neutral).
 const REWARD_CLASS_CHOICES := 2
@@ -20,28 +20,43 @@ const COPY_CAP := 2
 const SKIP_GOLD := 10
 ## HP restored by the reward screen's Heal alternative (never past max HP).
 const REWARD_HEAL := 12
+## Extra gold for beating the mid-boss, on top of Vendor.gold_for_win.
+const MID_BOSS_GOLD_BONUS := 15
 
 ## One stop on the line. `enemy_count` only matters for COMBAT stops and
 ## `beat_index` (into StoryContent) only for STORY stops. A COMBAT stop with
 ## `boss` set fights StarterContent.boss_encounter() instead of a random pack,
-## and winning it ends the run with no gold and no card reward.
+## and winning it ends the run with no gold and no card reward. A COMBAT stop with `mid_boss` set
+## fights StarterContent.mid_boss_encounter(); winning it pays gold and offers a card reward like a
+## regular fight, and the run goes on.
+## `tier` is the 0-based act (0 up to the mid-boss, 1 after it) and `fight` the 0-based number of a
+## regular COMBAT stop among the regular fights; both are set by RunState._default_line and
+## drive the encounter pools and stat ramp (see StarterContent.varied_encounter).
 class Stop:
 	var type: StopType
 	var enemy_count: int
 	var beat_index: int
 	var boss: bool
+	var mid_boss: bool
+	var tier: int
+	var fight: int
 
-	func _init(stop_type: StopType, count: int = 0, beat: int = 0, is_boss: bool = false) -> void:
+	func _init(stop_type: StopType, count: int = 0, beat: int = 0, is_boss: bool = false, is_mid_boss: bool = false) -> void:
 		type = stop_type
 		enemy_count = count
 		beat_index = beat
 		boss = is_boss
+		mid_boss = is_mid_boss
+		tier = 0
+		fight = 0
 
 	func describe() -> String:
 		match type:
 			StopType.COMBAT:
 				if boss:
 					return "Boss"
+				if mid_boss:
+					return "Mid-boss"
 				return "Combat (%d enem%s)" % [enemy_count, "y" if enemy_count == 1 else "ies"]
 			StopType.REST:
 				return "Rest"
@@ -130,7 +145,13 @@ func start_combat() -> Combat:
 	if _active_combat != null:
 		_active_combat.abandon()
 		_active_combat = null
-	var enemies := StarterContent.boss_encounter() if stop.boss else StarterContent.varied_encounter(stop.enemy_count, _rng)
+	var enemies: Array[EnemyData]
+	if stop.boss:
+		enemies = StarterContent.boss_encounter()
+	elif stop.mid_boss:
+		enemies = StarterContent.mid_boss_encounter()
+	else:
+		enemies = StarterContent.varied_encounter(stop.enemy_count, _rng, stop.tier, stop.fight)
 	_active_combat = Combat.create(player, deck, enemies, _rng.randi(), relics)
 	return _active_combat
 
@@ -146,6 +167,10 @@ func complete_combat(victory: bool) -> void:
 		push_error("RunState.complete_combat: not at a combat stop awaiting a result")
 		return
 	_active_combat = null
+	# A hit that kills the player while Thorns kill the last enemy reports a victory with a dead
+	# player (Combat._check_end); a dead player cannot go on, so it counts as the defeat it is.
+	if player.is_dead():
+		victory = false
 	if not victory:
 		finished = true
 		escaped = false
@@ -154,7 +179,7 @@ func complete_combat(victory: bool) -> void:
 		# The boss ends the line: no gold (nothing left to spend it on), no card to pick.
 		_advance()
 		return
-	gold += Vendor.gold_for_win(stop.enemy_count)
+	gold += Vendor.gold_for_win(stop.enemy_count) + (MID_BOSS_GOLD_BONUS if stop.mid_boss else 0)
 	for relic in relics:
 		match relic.kind:
 			RelicData.Kind.WIN_GOLD:
@@ -350,24 +375,43 @@ func _advance() -> void:
 		escaped = true
 
 
-## The placeholder train line: boarding, small fights early with the Conductor
-## glimpsed mid-run, a vendor before the first trio, rests between, a second
-## vendor and the last-light beat, then the Conductor as boss.
+## The train line, 21 stops in two acts: four regular fights, the Brakeman halfway (stop 9), four
+## harder fights, then the Conductor. Three vendors, four rests and the four story beats in order.
+## Tier (act) and fight number are filled in here; see docs/LEVELS_DESIGN.md.
 func _default_line() -> Array[Stop]:
-	return [
+	var line: Array[Stop] = [
 		Stop.new(StopType.STORY, 0, 0),
 		Stop.new(StopType.COMBAT, 1),
 		Stop.new(StopType.COMBAT, 2),
 		Stop.new(StopType.REST),
-		Stop.new(StopType.STORY, 0, 1),
 		Stop.new(StopType.COMBAT, 2),
 		Stop.new(StopType.VENDOR),
-		Stop.new(StopType.COMBAT, 3),
+		Stop.new(StopType.COMBAT, 2),
+		Stop.new(StopType.STORY, 0, 1),
 		Stop.new(StopType.REST),
+		Stop.new(StopType.COMBAT, 1, 0, false, true),
+		Stop.new(StopType.STORY, 0, 2),
+		Stop.new(StopType.REST),
+		Stop.new(StopType.COMBAT, 2),
+		Stop.new(StopType.COMBAT, 3),
+		Stop.new(StopType.VENDOR),
+		Stop.new(StopType.REST),
+		Stop.new(StopType.COMBAT, 2),
+		Stop.new(StopType.COMBAT, 3),
 		Stop.new(StopType.VENDOR),
 		Stop.new(StopType.STORY, 0, 3),
 		Stop.new(StopType.COMBAT, 1, 0, true),
 	]
+	var tier := 0
+	var fight := 0
+	for stop in line:
+		stop.tier = tier
+		if stop.type == StopType.COMBAT and not stop.boss and not stop.mid_boss:
+			stop.fight = fight
+			fight += 1
+		if stop.mid_boss:
+			tier = 1
+	return line
 
 
 func _roll_rewards() -> void:

@@ -28,6 +28,8 @@ func run() -> int:
 	_test_rewards_rolled_eagerly_and_copied()
 	_test_survivors_from_mutation_audit()
 	_test_boss_stop()
+	_test_mid_boss_stop()
+	_test_progressive_difficulty()
 	_test_reward_memory_and_skip_gold()
 	_test_reward_alternatives()
 	return _failures
@@ -61,15 +63,47 @@ func _test_fresh_state() -> void:
 
 func _test_default_line() -> void:
 	var state := RunState.new(1)
-	_check(state.stops.size() == 12, "default line has 12 stops")
+	_check(state.stops.size() == 21, "default line has 21 stops")
 	_check(state.stops[0].type == RunState.StopType.STORY and state.stops[0].describe() == "Story", "the line opens with a story beat")
 	_check(state.stops[1].type == RunState.StopType.COMBAT and state.stops[1].enemy_count == 1, "first fight is a solo fight")
-	_check(state.stops[3].type == RunState.StopType.REST and state.stops[8].type == RunState.StopType.REST, "rests sit at stops 4 and 9")
-	_check(state.stops[6].type == RunState.StopType.VENDOR and state.stops[6].describe() == "Vendor", "a vendor comes before the first trio")
-	_check(state.stops[9].type == RunState.StopType.VENDOR, "a second vendor comes before the finale")
-	_check(state.stops[4].type == RunState.StopType.STORY and state.stops[4].beat_index == 1, "the Conductor is glimpsed mid-run")
-	_check(state.stops[10].type == RunState.StopType.STORY, "a story beat comes just before the boss")
-	_check(state.stops[11].type == RunState.StopType.COMBAT and state.stops[11].boss and state.stops[11].describe() == "Boss", "the final stop is the boss fight")
+	var regular := 0
+	var vendors := 0
+	var beats: Array[int] = []
+	var bosses := 0
+	var mid_bosses := 0
+	for stop in state.stops:
+		if stop.type == RunState.StopType.COMBAT and not stop.boss and not stop.mid_boss:
+			regular += 1
+		if stop.type == RunState.StopType.VENDOR:
+			vendors += 1
+		if stop.type == RunState.StopType.STORY:
+			beats.append(stop.beat_index)
+		bosses += 1 if stop.boss else 0
+		mid_bosses += 1 if stop.mid_boss else 0
+	_check(regular == 8, "the line has eight regular fights (twice the old four)")
+	_check(vendors == 3 and bosses == 1 and mid_bosses == 1, "three vendors, one mid-boss and one final boss")
+	_check(beats == [0, 1, 2, 3], "the four story beats come in order: %s" % str(beats))
+	var mid := state.stops[9]
+	_check(mid.type == RunState.StopType.COMBAT and mid.mid_boss and not mid.boss and mid.describe() == "Mid-boss", "stop 9 is the mid-boss")
+	var before := 0
+	for i in 9:
+		if state.stops[i].type == RunState.StopType.COMBAT:
+			before += 1
+	_check(before == 4, "the mid-boss comes after the fourth regular fight, halfway")
+	var last := state.stops[state.stops.size() - 1]
+	_check(last.type == RunState.StopType.COMBAT and last.boss and not last.mid_boss and last.describe() == "Boss", "the final stop is the boss fight")
+	_check(state.stops[10].type == RunState.StopType.STORY and state.stops[10].beat_index == 2, "the empty-platform beat follows the mid-boss")
+	var tiers_ok := true
+	var fights_ok := true
+	var want_fight := 0
+	for i in state.stops.size():
+		var stop: RunState.Stop = state.stops[i]
+		tiers_ok = tiers_ok and stop.tier == (0 if i <= 9 else 1)
+		if stop.type == RunState.StopType.COMBAT and not stop.boss and not stop.mid_boss:
+			fights_ok = fights_ok and stop.fight == want_fight
+			want_fight += 1
+	_check(tiers_ok, "stops up to the mid-boss are tier 0, later ones tier 1")
+	_check(fights_ok, "regular fights are numbered 0 to 7 in order")
 
 
 func _test_start_combat_builds_fight_with_persistent_player() -> void:
@@ -280,7 +314,7 @@ func _test_rest() -> void:
 	_check(state.rest() == -1 and state.stop_index == 1, "rest does nothing at a combat stop")
 	_win_and_skip(state)
 	_win_and_skip(state)
-	state.player.take_damage(30)
+	state.player.take_damage(40)
 	var hp_before := state.player.hp
 	_check(state.rest() == RunState.REST_HEAL and state.player.hp == hp_before + RunState.REST_HEAL, "rest heals and reports HP restored")
 	_check(state.stop_index == 4, "rest moves to the next stop")
@@ -304,8 +338,8 @@ func _test_story_flow() -> void:
 	_check(not state.read_story() and state.reward_pending(), "read_story is rejected while a reward is pending")
 	# The final story stop sits before the last fight.
 	var late := RunState.new(8)
-	late.stop_index = 10
-	_check(late.current_beat() != null and late.read_story() and late.stop_index == 11, "the late story stop reads and leads to the boss")
+	late.stop_index = late.stops.size() - 2
+	_check(late.current_beat() != null and late.read_story() and late.stop_index == late.stops.size() - 1 and late.current_stop().boss, "the late story stop reads and leads to the boss")
 
 
 # The missing beat logs push_error on purpose; that output is expected here.
@@ -377,7 +411,7 @@ func _test_seed_determinism() -> void:
 	_check(ids_a == ids_b, "same seed offers the same rewards")
 
 
-## Moves a run to the first VENDOR stop (index 6) by winning/skipping and resting on the way.
+## Moves a run to the first VENDOR stop (index 5) by winning/skipping and resting on the way.
 func _at_vendor(rng_seed: int) -> RunState:
 	var state := _at_first_fight(rng_seed)
 	var guard := 0
@@ -504,7 +538,7 @@ func _test_vendor_gold_and_stale_state() -> void:
 	_check(bought.ok and state.gold == 100 - bought.spent, "gold changed while a vendor exists is honoured, not overwritten")
 	state.leave_vendor()
 	_check(state.vendor() == null, "the vendor is gone after leaving")
-	_check(vendor != null and state.stop_index == 7, "setup: moved past the vendor stop")
+	_check(vendor != null and state.stop_index == 6, "setup: moved past the vendor stop")
 
 
 func _test_start_combat_twice_releases_first() -> void:
@@ -577,12 +611,19 @@ func _test_survivors_from_mutation_audit() -> void:
 	# The line's exact shape, so a silent edit to it is noticed.
 	var shape := []
 	for stop in RunState.new(1).stops:
-		shape.append([stop.type, stop.enemy_count, stop.beat_index, stop.boss])
+		shape.append([stop.type, stop.enemy_count, stop.beat_index, stop.boss, stop.mid_boss, stop.tier])
+	var story := RunState.StopType.STORY
+	var combat := RunState.StopType.COMBAT
+	var rest := RunState.StopType.REST
+	var vendor := RunState.StopType.VENDOR
 	var want := [
-		[RunState.StopType.STORY, 0, 0, false], [RunState.StopType.COMBAT, 1, 0, false], [RunState.StopType.COMBAT, 2, 0, false],
-		[RunState.StopType.REST, 0, 0, false], [RunState.StopType.STORY, 0, 1, false], [RunState.StopType.COMBAT, 2, 0, false],
-		[RunState.StopType.VENDOR, 0, 0, false], [RunState.StopType.COMBAT, 3, 0, false], [RunState.StopType.REST, 0, 0, false],
-		[RunState.StopType.VENDOR, 0, 0, false], [RunState.StopType.STORY, 0, 3, false], [RunState.StopType.COMBAT, 1, 0, true],
+		[story, 0, 0, false, false, 0], [combat, 1, 0, false, false, 0], [combat, 2, 0, false, false, 0],
+		[rest, 0, 0, false, false, 0], [combat, 2, 0, false, false, 0], [vendor, 0, 0, false, false, 0],
+		[combat, 2, 0, false, false, 0], [story, 0, 1, false, false, 0], [rest, 0, 0, false, false, 0],
+		[combat, 1, 0, false, true, 0], [story, 0, 2, false, false, 1], [rest, 0, 0, false, false, 1],
+		[combat, 2, 0, false, false, 1], [combat, 3, 0, false, false, 1], [vendor, 0, 0, false, false, 1],
+		[rest, 0, 0, false, false, 1], [combat, 2, 0, false, false, 1], [combat, 3, 0, false, false, 1],
+		[vendor, 0, 0, false, false, 1], [story, 0, 3, false, false, 1], [combat, 1, 0, true, false, 1],
 	]
 	_check(shape == want, "the default line has the documented shape: %s" % str(shape))
 
@@ -622,6 +663,100 @@ func _test_boss_stop() -> void:
 	var beaten := _at_boss(52)
 	beaten.complete_combat(false)
 	_check(beaten.finished and not beaten.escaped, "losing to the boss ends the run without escape")
+
+
+## Walks a run to the mid-boss stop the same way.
+func _at_mid_boss(rng_seed: int) -> RunState:
+	var state := RunState.new(rng_seed)
+	var guard := 0
+	while not state.finished and not state.current_stop().mid_boss and guard < 60:
+		guard += 1
+		match state.current_stop().type:
+			RunState.StopType.COMBAT:
+				_win_and_skip(state)
+			RunState.StopType.STORY:
+				state.read_story()
+			RunState.StopType.VENDOR:
+				state.leave_vendor()
+			_:
+				state.rest()
+	return state
+
+
+func _test_mid_boss_stop() -> void:
+	var state := _at_mid_boss(61)
+	_check(not state.finished and state.stop_index == 9 and state.current_stop().mid_boss, "setup: standing at the mid-boss stop")
+	var fight := state.start_combat()
+	_check(fight != null and fight.enemies.size() == 1 and fight.enemies[0].display_name == "The Brakeman", "the mid-boss stop fights the Brakeman alone")
+	if fight != null:
+		_check(fight.enemies[0].max_hp == StarterContent.mid_boss_encounter()[0].max_hp, "the mid-boss is not stat-ramped")
+		fight.abandon()
+	var gold_before := state.gold
+	state.complete_combat(true)
+	_check(state.gold == gold_before + Vendor.gold_for_win(1) + RunState.MID_BOSS_GOLD_BONUS, "beating the mid-boss pays gold with its bonus")
+	_check(state.reward_pending() and state.reward_choices().size() == RunState.REWARD_CHOICES, "beating the mid-boss offers a card reward")
+	_check(not state.finished and not state.escaped, "beating the mid-boss does not end the run")
+	var deck_before := state.deck.size()
+	_check(state.resolve_reward(state.reward_choices()[0]) and state.deck.size() == deck_before + 1, "the mid-boss reward can be taken")
+	_check(not state.finished and state.stop_index == 10 and state.current_stop().type == RunState.StopType.STORY, "the run continues past the mid-boss to the story beat")
+
+	var beaten := _at_mid_boss(62)
+	beaten.complete_combat(false)
+	_check(beaten.finished and not beaten.escaped, "losing to the mid-boss ends the run without escape")
+
+	# Relics pay out on the mid-boss like any fight (only the final boss is exempt).
+	var relic_run := _at_mid_boss(63)
+	var purse := load("res://data/relics/brass_token_purse.tres") as RelicData
+	relic_run.relics.assign([purse])
+	var relic_gold := relic_run.gold
+	relic_run.complete_combat(true)
+	_check(relic_run.gold == relic_gold + Vendor.gold_for_win(1) + RunState.MID_BOSS_GOLD_BONUS + purse.amount, "a WIN_GOLD relic pays on the mid-boss")
+
+
+func _test_progressive_difficulty() -> void:
+	# The ramp is exact and deterministic.
+	_check(is_equal_approx(StarterContent.ramp_factor(0), 1.0), "fight 0 is unramped")
+	_check(StarterContent.ramp_factor(7) > StarterContent.ramp_factor(3) and StarterContent.ramp_factor(3) > 1.0, "the ramp grows with the fight number")
+	_check(is_equal_approx(StarterContent.ramp_factor(-4), 1.0), "a negative fight number counts as 0")
+	# A later stop's pack has at least the HP and attack of an earlier one for the same seed.
+	var early_hp := 0
+	var late_hp := 0
+	var early_hit := 0
+	var late_hit := 0
+	for rng_seed in 40:
+		var a := RandomNumberGenerator.new()
+		a.seed = rng_seed
+		var b := RandomNumberGenerator.new()
+		b.seed = rng_seed
+		for enemy in StarterContent.varied_encounter(3, a, 0, 0):
+			early_hp += enemy.max_hp
+			for intent in enemy.intents:
+				early_hit += intent.amount if intent.kind == CardEffect.Kind.DAMAGE else 0
+		for enemy in StarterContent.varied_encounter(3, b, 0, 7):
+			late_hp += enemy.max_hp
+			for intent in enemy.intents:
+				late_hit += intent.amount if intent.kind == CardEffect.Kind.DAMAGE else 0
+	_check(late_hp > early_hp and late_hit > early_hit, "fight 7 enemies have more HP and hit harder than fight 0 for the same seeds")
+	# The shared resources are never touched by scaling.
+	var template := load(StarterContent.COLOSSUS_PATH) as EnemyData
+	var hp_before := template.max_hp
+	var damage_before: int = template.intents[1].amount
+	var scaled := StarterContent.scaled(template.duplicate(true) as EnemyData, 1.5)
+	_check(scaled.max_hp == roundi(hp_before * 1.5) and scaled.intents[1].amount == roundi(damage_before * 1.5), "scaled multiplies HP and damage, rounded")
+	_check(scaled.intents[0].kind == CardEffect.Kind.BLOCK and scaled.intents[0].amount == template.intents[0].amount, "scaled leaves Block alone")
+	_check(template.max_hp == hp_before and template.intents[1].amount == damage_before, "scaling leaves the shared resource unchanged")
+	# The stop numbers feed the encounter: the same seed at the same stop gives the same ramped pack.
+	var run_a := RunState.new(5)
+	var run_b := RunState.new(5)
+	run_a.stop_index = 16
+	run_b.stop_index = 16
+	var fa := run_a.start_combat()
+	var fb := run_b.start_combat()
+	var same := fa != null and fb != null and fa.enemies.size() == fb.enemies.size()
+	if same:
+		for i in fa.enemies.size():
+			same = same and fa.enemies[i].max_hp == fb.enemies[i].max_hp and fa.enemies[i].display_name == fb.enemies[i].display_name
+	_check(same, "a seeded late fight is reproducible")
 
 
 ## Each character starts with its own HP, name and deck, and is offered only neutral and own cards.
