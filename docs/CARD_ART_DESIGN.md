@@ -23,14 +23,31 @@ Neutral is the only light card, so class cards read as "darker, coloured, framed
 
 | Kind | Icon | Kind | Icon |
 |---|---|---|---|
-| DAMAGE_PER_BLOCK | shield + blade | THORNS | spiked star |
+| DAMAGE_PER_BLOCK | shield + hammer | THORNS | spiked star |
 | DAMAGE_IF_BLOCK | blade + small shield | EXPOSE | crosshair |
 | DAMAGE_PER_PLAY | blade + rising bars | HOLD | shield outline with lock |
 | DAMAGE_PER_HAUNT | ghost + blade | GAIN_ENERGY | bolt |
-| DAMAGE | blade | DRAW | two cards |
+| DAMAGE | weapon by variant (below) | DRAW | two cards |
 | HAUNT | ghost | HEAL_PER_HAUNTED | heart with plus |
 | BLOCK | shield | LOSE_HP | blood drop |
 
+
+### Damage variants (`CardView.icon_variant(card)`)
+
+Plain DAMAGE (as primary icon) picks a weapon from the card's own data, first match wins. All stay red/orange except the bone. The secondary glyph for DAMAGE is always the sword.
+
+| Variant | Rule | Icon | Cards today |
+|---|---|---|---|
+| needle | class pickpocket | thin pin with ring eye and thread | Cutting Word, Hamstring, Lift |
+| bone | class medium | pale bone club | Grave Chill |
+| sweep | target ALL_ENEMIES | wide arc slash (plus the enemy pips) | Sweep |
+| fist | id in `FIST_IDS` (shove, shoulder_charge) | fist with motion lines | Shove, Shoulder Charge |
+| axe | total damage >= 12 (`HEAVY_DAMAGE`) | haft with crescent head | Heavy Blow |
+| flurry | damage <= 4 (`LIGHT_DAMAGE`) and cost 0 | three parallel slashes | Flurry |
+| dagger | damage <= 4 | short broad blade | Guarded Strike |
+| sword | everything else | the original blade | none yet |
+
+DAMAGE_PER_BLOCK uses a hammer next to the shield (variant `hammer`; Bash). The other composite icons keep the blade.
 Further kinds appear as up to three small glyphs in the window's bottom right. All-enemy cards show three small enemy pips top left. A new `CardEffect.Kind` needs an entry in `ICON_PRIORITY` and `_draw_icon` (the test enforces it).
 
 ## States (`CardView.set_state(state, note)`)
@@ -45,4 +62,4 @@ Class is carried by label text and emblem shape as well as colour; unplayable is
 
 ## Not done yet
 
-Keyboard focus ring, distinct damage icons per card, localisation of the labels. Phase 2 wiring is done: the battle hand (scale 0.85, `HAND_CARD_SCALE`), reward and vendor offers (1.2), remove pickers (0.7) and the select screen (0.6) all use CardView; `clickable` + `pressed`, `hotkey`, `preview` and `CardView.find_all` support them.
+Keyboard focus ring, localisation of the labels. Phase 2 wiring is done: the battle hand (scale 0.85, `HAND_CARD_SCALE`), reward and vendor offers (1.2), remove pickers (0.7) and the select screen (0.6) all use CardView; `clickable` + `pressed`, `hotkey`, `preview` and `CardView.find_all` support them.

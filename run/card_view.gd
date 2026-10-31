@@ -150,6 +150,41 @@ static func primary_kind(c: CardData) -> int:
 	return -1
 
 
+## Ids that get the fist icon (shoves and body blows), the one per-id exception to the rules below.
+const FIST_IDS: Array[StringName] = [&"shove", &"shoulder_charge"]
+const HEAVY_DAMAGE := 12
+const LIGHT_DAMAGE := 4
+
+## Which weapon icon a card's plain damage shows, from its own data: class (pickpocket needle,
+## medium bone), target (all enemies sweep), id (fist), magnitude (axe 12+, dagger up to 4)
+## and cost (a free light hit is a flurry); otherwise a sword. Empty when the card has no DAMAGE
+## effect, or for kinds that draw their own composite icon (see docs/CARD_ART_DESIGN.md).
+static func icon_variant(c: CardData) -> StringName:
+	if c == null:
+		return &""
+	if primary_kind(c) == CardEffect.Kind.DAMAGE_PER_BLOCK:
+		return &"hammer"
+	var total := 0
+	for effect in c.effects:
+		if effect.kind == CardEffect.Kind.DAMAGE:
+			total += effect.amount
+	if total <= 0 or primary_kind(c) != CardEffect.Kind.DAMAGE:
+		return &""
+	if c.character == &"pickpocket":
+		return &"needle"
+	if c.character == &"medium":
+		return &"bone"
+	if c.target_mode == CardData.TargetMode.ALL_ENEMIES:
+		return &"sweep"
+	if c.id in FIST_IDS:
+		return &"fist"
+	if total >= HEAVY_DAMAGE:
+		return &"axe"
+	if total <= LIGHT_DAMAGE:
+		return &"flurry" if c.cost == 0 else &"dagger"
+	return &"sword"
+
+
 ## Up to three further kinds shown as small glyphs (the primary and its composite parts are skipped).
 static func secondary_kinds(c: CardData) -> Array[int]:
 	var primary := primary_kind(c)
@@ -445,7 +480,7 @@ func _draw_card_icons(win: Rect2, p: Dictionary) -> void:
 		return
 	var window_col: Color = p.window
 	var center := win.get_center() + Vector2(0, -1)
-	_draw_icon(primary, center, 20.0, window_col)
+	_draw_icon(primary, center, 20.0, window_col, icon_variant(card))
 	var secondary := secondary_kinds(card)
 	var x := win.end.x - 12.0
 	for kind in secondary:
@@ -559,6 +594,71 @@ func _blade(c: Vector2, r: float, col: Color) -> void:
 	_fill(_pts([Vector2(-0.08, 0.4), Vector2(0.08, 0.4), Vector2(0.08, 0.85), Vector2(-0.08, 0.85)], c, r, rot), col.darkened(0.4), false)
 
 
+## Plain-damage icon for a variant from icon_variant(); unknown or empty is the sword.
+func _weapon(variant: StringName, c: Vector2, r: float, col: Color, window_col: Color) -> void:
+	var rot := PI / 4.0
+	match variant:
+		&"dagger":
+			# Short, broad blade with a small guard: reads as a light stab.
+			_fill(_pts([Vector2(0, -0.8), Vector2(0.26, -0.45), Vector2(0.24, 0.3), Vector2(-0.24, 0.3), Vector2(-0.26, -0.45)], c, r, rot), col)
+			_fill(_pts([Vector2(-0.5, 0.3), Vector2(0.5, 0.3), Vector2(0.5, 0.46), Vector2(-0.5, 0.46)], c, r, rot), col.darkened(0.25))
+			_fill(_pts([Vector2(-0.1, 0.46), Vector2(0.1, 0.46), Vector2(0.1, 0.85), Vector2(-0.1, 0.85)], c, r, rot), col.darkened(0.4), false)
+		&"axe":
+			# Long haft with a big crescent head: reads as a heavy chop.
+			_fill(_pts([Vector2(-0.09, -0.9), Vector2(0.09, -0.9), Vector2(0.09, 1.0), Vector2(-0.09, 1.0)], c, r * 0.82, rot), col.darkened(0.4), false)
+			_fill(_pts([Vector2(0.09, -0.95), Vector2(-0.55, -1.05), Vector2(-0.95, -0.85), Vector2(-0.75, -0.4), Vector2(-0.95, 0.05), Vector2(-0.5, 0.15), Vector2(0.09, -0.05)], c, r * 0.82, rot), col)
+		&"fist":
+			# Fist from the side with motion lines.
+			for i in 3:
+				draw_line(c + Vector2(-1.0, -0.4 + 0.45 * i) * r, c + Vector2(-0.55 + 0.1 * i, -0.4 + 0.45 * i) * r, Color(col, 0.7), maxf(1.2, r * 0.1))
+			_fill(_pts([Vector2(-0.3, -0.35), Vector2(0.75, -0.35), Vector2(0.9, 0.3), Vector2(0.65, 0.85), Vector2(-0.3, 0.85)], c, r), col)
+			for i in 4:
+				var f := c + Vector2(-0.18 + 0.28 * i, -0.38) * r
+				draw_circle(f, r * 0.19, col)
+				draw_arc(f, r * 0.19, PI, TAU, 8, Color(0, 0, 0, 0.5), 1.0, true)
+			draw_line(c + Vector2(0.1, 0.1) * r, c + Vector2(0.75, 0.1) * r, window_col, maxf(1.0, r * 0.09))
+		&"flurry":
+			# Three quick parallel slashes.
+			for i in 3:
+				var o := (i - 1) * 0.55
+				_fill(_pts([Vector2(0.9, -0.9), Vector2(0.15, 0.0), Vector2(-0.8, 0.8), Vector2(-0.15, -0.05)], c + Vector2(o, 0.0) * r, r * 0.8), col if i == 1 else col.lightened(0.15))
+		&"needle":
+			# A long, bold pin with a ring eye and a short thread: a precise prick.
+			_fill(_pts([Vector2(0, -1.15), Vector2(0.1, -0.85), Vector2(0.1, 0.55), Vector2(-0.1, 0.55), Vector2(-0.1, -0.85)], c, r, rot), col.lightened(0.2))
+			draw_arc(c + Vector2(-0.53, 0.53) * r, r * 0.17, 0, TAU, 14, col.lightened(0.2), maxf(1.4, r * 0.12), true)
+			var thread := PackedVector2Array()
+			for i in 8:
+				thread.append(c + Vector2(-0.68 - 0.07 * i, 0.62 + 0.05 * i + sin(i * 1.4) * 0.1) * r)
+			draw_polyline(thread, Color(col.lightened(0.2), 0.8), maxf(1.2, r * 0.08), true)
+		&"bone":
+			# A pale bone (shaft with two knobbed ends): a spectral club.
+			var bone := col.lerp(Color(0.92, 0.88, 0.80), 0.6)
+			_fill(_pts([Vector2(-0.12, -0.75), Vector2(0.12, -0.75), Vector2(0.12, 0.75), Vector2(-0.12, 0.75)], c, r, rot), bone)
+			for end in [-0.85, 0.85]:
+				for side in [-0.17, 0.17]:
+					var kp := c + Vector2(side, end).rotated(rot) * r
+					draw_circle(kp, r * 0.2, bone)
+					draw_arc(kp, r * 0.2, 0, TAU, 12, Color(0, 0, 0, 0.5), 1.0, true)
+		&"sweep":
+			# Wide arc slash across the whole window.
+			var u: Array = []
+			for i in 13:
+				var a := deg_to_rad(205.0 + 130.0 * i / 12.0)
+				u.append(Vector2(cos(a) * 1.15, 0.7 + sin(a) * 0.95))
+			for i in 13:
+				var a := deg_to_rad(335.0 - 130.0 * i / 12.0)
+				u.append(Vector2(cos(a) * 1.0, 0.75 + sin(a) * 0.55))
+			_fill(_pts(u, c + Vector2(0, -0.2) * r, r), col)
+		_:
+			_blade(c, r, col)
+
+
+func _hammer(c: Vector2, r: float, col: Color) -> void:
+	var rot := PI / 4.0
+	_fill(_pts([Vector2(-0.09, -0.6), Vector2(0.09, -0.6), Vector2(0.09, 1.0), Vector2(-0.09, 1.0)], c, r, rot), col.darkened(0.4), false)
+	_fill(_pts([Vector2(-0.6, -1.0), Vector2(0.6, -1.0), Vector2(0.6, -0.35), Vector2(-0.6, -0.35)], c, r, rot), col)
+
+
 func _shield(c: Vector2, r: float, col: Color, window_col: Color) -> void:
 	_fill(_shield_pts(c, r), col)
 	draw_line(c + Vector2(0, -0.8) * r, c + Vector2(0, 0.8) * r, window_col, maxf(1.0, r * 0.14))
@@ -577,12 +677,12 @@ func _ghost(c: Vector2, r: float, col: Color, window_col: Color) -> void:
 
 
 ## Draws the icon for one effect kind at centre c, radius r. `window_col` cuts details out of it.
-func _draw_icon(kind: int, c: Vector2, r: float, window_col: Color) -> void:
+func _draw_icon(kind: int, c: Vector2, r: float, window_col: Color, variant := &"") -> void:
 	var col: Color = kind_color(kind)
 	var w := maxf(1.2, r * 0.16)
 	match kind:
 		CardEffect.Kind.DAMAGE:
-			_blade(c, r * 1.25, col)
+			_weapon(variant, c, r * 1.25, col, window_col)
 		CardEffect.Kind.BLOCK:
 			_shield(c, r, col, window_col)
 		CardEffect.Kind.DRAW:
@@ -618,7 +718,7 @@ func _draw_icon(kind: int, c: Vector2, r: float, window_col: Color) -> void:
 			draw_line(c + Vector2(-0.4, 0.05) * r, c + Vector2(0.4, 0.05) * r, window_col, w)
 		CardEffect.Kind.DAMAGE_PER_BLOCK:
 			_shield(c + Vector2(-0.15, 0.1) * r, r * 0.85, KIND_COLORS[CardEffect.Kind.BLOCK], window_col)
-			_blade(c + Vector2(0.3, -0.2) * r, r * 0.85, KIND_COLORS[CardEffect.Kind.DAMAGE])
+			_hammer(c + Vector2(0.3, -0.2) * r, r * 0.95, KIND_COLORS[CardEffect.Kind.DAMAGE])
 		CardEffect.Kind.DAMAGE_IF_BLOCK:
 			_blade(c + Vector2(0.1, -0.1) * r, r * 1.0, KIND_COLORS[CardEffect.Kind.DAMAGE])
 			_shield(c + Vector2(-0.55, 0.5) * r, r * 0.5, KIND_COLORS[CardEffect.Kind.BLOCK], window_col)
